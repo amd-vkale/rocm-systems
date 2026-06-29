@@ -20,17 +20,17 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-#include "lib/rocprofiler-sdk/hsa/memory_snapshot.hpp"
+#include "lib/rocprofiler-sdk/kernel_replay/memory_snapshot.hpp"
 
 #include "lib/common/logging.hpp"
 #include "lib/rocprofiler-sdk/hsa/hsa.hpp"
-#include "lib/rocprofiler-sdk/hsa/memory_tracker.hpp"
+#include "lib/rocprofiler-sdk/kernel_replay/memory_tracker.hpp"
 
 #include <hsa/hsa.h>
 
 namespace rocprofiler
 {
-namespace hsa
+namespace kernel_replay
 {
 namespace memory_snapshot
 {
@@ -39,7 +39,7 @@ namespace
 hsa_status_t
 dma_copy(void* dst, const void* src, size_t n)
 {
-    auto* core = get_core_table();
+    auto* core = hsa::get_core_table();
     if(!core || !core->hsa_memory_copy_fn) return HSA_STATUS_ERROR;
     return core->hsa_memory_copy_fn(dst, src, n);
 }
@@ -93,5 +93,5 @@ Snapshot::restore()
     return ok;
 }
 }  // namespace memory_snapshot
-}  // namespace hsa
+}  // namespace kernel_replay
 }  // namespace rocprofiler
