@@ -462,6 +462,23 @@ WriteInterceptor(const void* packets,
             ROCP_WARNING << fmt::format("kernel replay: HIP graph launches are not supported");
     }
 
+    // Replay handles a submission that is exactly one packet holding exactly one dispatch (see the
+    // gate below). A multi-packet submission -- one dispatch behind a barrier or control packet, or
+    // a batch of several dispatches -- runs once on the ordinary path with no CONFIG callback, no
+    // pass_count_cb and no PASS callbacks. The kernel still executes exactly once and application
+    // state stays correct, so this is a notification gap rather than a defect, but without a
+    // diagnostic the tool sees an ordinary dispatch record and cannot tell replay was declined.
+    if(has_kernel_replay && !graph_launch_active && pkt_count != 1)
+    {
+        static std::atomic<bool> _warned_multi_packet{false};
+        if(!_warned_multi_packet.exchange(true, std::memory_order_relaxed))
+            ROCP_WARNING << fmt::format(
+                "kernel replay: only single-packet dispatch submissions are replayed; a submission "
+                "of {} packets ({} dispatch) ran once without replay",
+                pkt_count,
+                num_dispatch_packets);
+    }
+
     // Fast path: graph_launch is the only reason we're here. Increment the per-launch
     // dispatch count and write the original packets without allocating signals or rewriting
     // packets. Large graph launches in summary-only mode would otherwise pay the full
