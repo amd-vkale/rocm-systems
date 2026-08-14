@@ -1143,9 +1143,17 @@ In multi-pass counter collection, each pass generates its output in a separate `
 Kernel replay (beta)
 ++++++++++++++++++++
 
-By default, multiple ``--pmc`` groups are collected using *application replay*: the application is re-run from start to finish once per counter group (as described in the preceding section). The ``--kernel-replay-beta-enabled`` flag switches to *kernel replay* instead, collecting all ``--pmc`` groups within a **single** application run. Each kernel dispatch is replayed once per counter group in-process, and the device memory it touches is snapshotted and restored between passes so every group observes identical inputs.
+By default, multiple ``--pmc`` groups are collected using *application replay*: the application is re-run from start to finish once per counter group (as described in the preceding section). The ``--kernel-replay-beta-enabled`` flag switches to *kernel replay* instead, collecting all ``--pmc`` groups within a **single** application run. Each kernel dispatch is replayed once per counter group in-process, with device memory snapshotted and restored between passes so every group observes identical inputs.
 
 This is useful when re-running the whole application per group is expensive or non-deterministic. Without the flag, multiple ``--pmc`` groups use application replay as usual.
+
+Before the first pass, replay snapshots **every tracked coarse-grained allocation owned by the dispatch's agent**, plus the module-scope variables of executables loaded on that agent. It does not attempt to discover which memory a kernel actually reads or writes, so allocations unrelated to the kernel are included. Host memory use during a replayed dispatch is therefore proportional to the agent's entire tracked device footprint, and both the snapshot and each per-pass restore scale with it.
+
+.. note::
+
+   - Managed or unified memory, and allocations reaching device memory through the virtual memory path (including ``hipMallocAsync``), are not snapshotted. A kernel writing to such memory accumulates values across passes instead of seeing identical inputs.
+
+   - Only single-packet dispatch submissions are replayed. HIP graph launches are not supported, and a multi-packet submission runs once without replay; both emit a warning.
 
 .. code-block:: shell
 
