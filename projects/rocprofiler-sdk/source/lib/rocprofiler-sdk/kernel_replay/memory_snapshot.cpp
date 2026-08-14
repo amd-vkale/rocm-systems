@@ -147,7 +147,27 @@ snap(hsa_agent_t agent)
             return false;
         }
 
-        if(dma_copy(blk.host_copy.data(), gpu_addr, size) != HSA_STATUS_SUCCESS)
+        // snap_inventory() released the tracker lock before returning, so a host thread calling
+        // hsa_amd_memory_pool_free / hsa_memory_free can retire this allocation while we read it.
+        // Copy under the read lock and re-verify the region is still live at no less than its
+        // recorded size, the same guard restore() applies to the write direction. nullopt means it
+        // was freed or shrunk after snap_inventory(): drop it from the snapshot instead of reading
+        // retired device memory. It could not be restored later anyway, since restore() repeats the
+        // identical check. Module variables live in the executable's data segment rather than the
+        // tracker, so they bypass the lock.
+        const auto st =
+            from_tracker
+                ? memory_tracker::inventory().rlock(
+                      [&](const memory_tracker::tracked_map_t& map) -> std::optional<hsa_status_t> {
+                          auto itr = map.find(gpu_addr);
+                          if(itr == map.end() || itr->second.size < size) return std::nullopt;
+                          return dma_copy(blk.host_copy.data(), gpu_addr, size);
+                      })
+                : std::optional<hsa_status_t>{dma_copy(blk.host_copy.data(), gpu_addr, size)};
+
+        if(!st) return true;
+
+        if(*st != HSA_STATUS_SUCCESS)
         {
             ROCP_WARNING << fmt::format(
                 "kernel-replay snapshot: device->host copy failed for {} {} ({}B)",
