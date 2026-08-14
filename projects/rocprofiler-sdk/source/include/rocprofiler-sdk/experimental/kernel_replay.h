@@ -55,6 +55,22 @@ ROCPROFILER_EXTERN_C_INIT
  * @c user_data during CONFIG PHASE_ENTER; the same value is delivered to every
  * subsequent PASS callback and to @c pass_count_cb and @c replay_continue_cb for the
  * same dispatch.
+ *
+ * @warning Beta. Repeatability across passes rests on a snapshot/restore that covers only
+ * directly-allocated device memory (the HSA pool and region allocators) plus module-scope
+ * @c __device__ / @c __constant__ variables of executables loaded on the agent. The following are
+ * NOT captured, so a kernel writing to them observes values accumulated across passes rather than
+ * identical inputs:
+ *
+ * @li Unified / managed memory, and any allocation reaching device memory through the virtual
+ * memory path (@c hsa_amd_vmem_map / @c hsa_amd_vmem_unmap), which is not hooked. This includes
+ * @c hipMallocAsync and other pool-backed allocations.
+ * @li Allocations carrying @c HSA_AMD_MEMORY_POOL_EXECUTABLE_FLAG, excluded so that runtime
+ * kernarg pools stay out of the snapshot.
+ *
+ * A dispatch is replayed only when its submission is a single packet containing a single dispatch.
+ * HIP graph launches are not supported, and multi-packet submissions run once without replay; each
+ * case emits a one-shot warning.
  */
 typedef struct rocprofiler_callback_tracing_kernel_replay_data_t
 {
@@ -102,6 +118,10 @@ typedef struct rocprofiler_callback_tracing_kernel_replay_data_t
     ///    redundant work such as reprogramming PC sampling hardware on every pass.
     ///  - Scoped to the replay loop: each context's pre-replay active/inactive state
     ///    is restored once the loop completes. Global context state is never modified.
+    ///  - Honored only by kernel dispatch tracing, dispatch counter collection and dispatch
+    ///    thread trace. PC sampling, SPM and device counting do not consult the override and
+    ///    keep running regardless, so a call naming one of those contexts reports success but
+    ///    has no effect.
     rocprofiler_status_t (*replay_local_start_context_cb)(rocprofiler_context_id_t context_id);
     rocprofiler_status_t (*replay_local_stop_context_cb)(rocprofiler_context_id_t context_id);
 } rocprofiler_callback_tracing_kernel_replay_data_t;
