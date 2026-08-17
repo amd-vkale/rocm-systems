@@ -152,3 +152,85 @@ TEST(kernel_replay_local_context, simulated_replay_loop_and_misbehaving_tool)
     EXPECT_EQ(lc::replay_local_start_context(timing), ROCPROFILER_STATUS_ERROR_CONTEXT_ERROR);
     EXPECT_FALSE(lc::local_context_override(timing).value_or(true));  // still off
 }
+
+// Last write in a single PASS-enter window wins: start then stop records inactive.
+TEST(kernel_replay_local_context, last_write_wins_in_arm_window)
+{
+    lc::scoped_local_context_control loop{};
+
+    lc::set_toggles_armed(true);
+    EXPECT_EQ(lc::replay_local_start_context({9}), ROCPROFILER_STATUS_SUCCESS);
+    EXPECT_EQ(lc::replay_local_stop_context({9}), ROCPROFILER_STATUS_SUCCESS);
+    lc::set_toggles_armed(false);
+
+    ASSERT_TRUE(lc::local_context_override({9}).has_value());
+    EXPECT_FALSE(*lc::local_context_override({9}));
+}
+
+// A local start replaces the caller's fallback, so a globally inactive context can be forced on
+// for the rest of the loop. Dispatch counters and SPM implement this (they assign `enabled = *ov`);
+// ATT only honors a forced-off (`ov && !*ov`) and PC sampling ignores the override entirely.
+TEST(kernel_replay_local_context, local_start_promotes_inactive)
+{
+    const rocprofiler_context_id_t ctx{11};
+    const bool                     globally_active = false;
+
+    lc::scoped_local_context_control loop{};
+    lc::set_toggles_armed(true);
+    EXPECT_EQ(lc::replay_local_start_context(ctx), ROCPROFILER_STATUS_SUCCESS);
+    lc::set_toggles_armed(false);
+
+    const bool counters_or_spm = lc::local_context_override(ctx).value_or(globally_active);
+    EXPECT_TRUE(counters_or_spm);
+}
+
+// Per-service consumer models used at dispatch time. Dispatch counters and SPM replace the global
+// enabled flag with the override; ATT skips only when forced off; PC sampling is agent-wide and
+// ignores the override (a local stop is a recorded no-op).
+TEST(kernel_replay_local_context, simulated_service_consumers)
+{
+    const rocprofiler_context_id_t counters{10};
+    const rocprofiler_context_id_t att{20};
+    const rocprofiler_context_id_t spm{30};
+    const rocprofiler_context_id_t pcs{40};
+
+    const auto dispatch_enabled = [](rocprofiler_context_id_t id, bool globally_on) {
+        if(auto ov = lc::local_context_override(id)) return *ov;
+        return globally_on;
+    };
+    const auto att_runs = [](rocprofiler_context_id_t id) {
+        if(auto ov = lc::local_context_override(id); ov && !*ov) return false;
+        return true;
+    };
+    const auto pcs_runs = [](rocprofiler_context_id_t) {
+        return true;  // agent-wide; does not consult the override
+    };
+
+    std::vector<bool> counters_ran{};
+    std::vector<bool> att_ran{};
+    std::vector<bool> spm_ran{};
+    std::vector<bool> pcs_ran{};
+
+    lc::scoped_local_context_control loop{};
+    for(int pass = 0; pass < 4; ++pass)
+    {
+        lc::set_toggles_armed(true);
+        if(pass == 1)
+        {
+            EXPECT_EQ(lc::replay_local_stop_context(att), ROCPROFILER_STATUS_SUCCESS);
+            EXPECT_EQ(lc::replay_local_stop_context(spm), ROCPROFILER_STATUS_SUCCESS);
+            EXPECT_EQ(lc::replay_local_stop_context(pcs), ROCPROFILER_STATUS_SUCCESS);
+        }
+        lc::set_toggles_armed(false);
+
+        counters_ran.push_back(dispatch_enabled(counters, true));
+        att_ran.push_back(att_runs(att));
+        spm_ran.push_back(dispatch_enabled(spm, true));
+        pcs_ran.push_back(pcs_runs(pcs));
+    }
+
+    EXPECT_EQ(counters_ran, (std::vector<bool>{true, true, true, true}));
+    EXPECT_EQ(att_ran, (std::vector<bool>{true, false, false, false}));
+    EXPECT_EQ(spm_ran, (std::vector<bool>{true, false, false, false}));
+    EXPECT_EQ(pcs_ran, (std::vector<bool>{true, true, true, true}));
+}
