@@ -20,6 +20,13 @@ constexpr uint64_t kRangeId = 0xABCD01;
 // Dispatches main.cpp submits inside the range, on the range's own queue.
 constexpr uint64_t kRangeDispatches = 3;
 
+// RR_APP_MODE=roctx: main.cpp makes no range replay calls. It brackets the same dispatches with a
+// ROCTx range of this name, and nests a second ROCTx range around one of them, as annotated
+// applications and the Kokkos Tools connector do. The client opens and closes the replay range
+// from those ROCTx callbacks.
+constexpr const char* kRoctxRangeName = "range-replay-phase";
+constexpr const char* kRoctxInnerName = "range-replay-inner";
+
 // What main.cpp's chain of dispatches produces from a zeroed buffer, under acc = acc*3 + add for
 // add = 1, 2, 3: 0 -> 1 -> 5 -> 18. Each dispatch reads what its predecessor wrote, so this pins
 // the recording's order as well as its contents.

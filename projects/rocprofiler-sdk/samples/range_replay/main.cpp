@@ -17,9 +17,12 @@
 //
 //   plain        (default) three dispatches on one stream -- a replayable range
 //   multi-queue  the same, plus a dispatch on a second stream, which the SDK declines
+//   roctx        the plain dispatches inside a ROCTx range instead of range replay calls; the tool
+//                opens the replay range from the ROCTx callbacks
 
 #include "range.hpp"
 
+#include <rocprofiler-sdk-roctx/roctx.h>
 #include <rocprofiler-sdk/experimental/range_replay.h>
 
 #include <hip/hip_runtime.h>
@@ -61,20 +64,21 @@ step(int* acc, int add)
 int
 main()
 {
+    const auto* mode_env     = getenv("RR_APP_MODE");
+    const auto  mode         = std::string{mode_env != nullptr ? mode_env : "plain"};
+    const bool  second_queue = (mode == "multi-queue");
+    const bool  use_roctx    = (mode == "roctx");
+
     auto* begin_fn = reinterpret_cast<decltype(&rocprofiler_range_replay_begin)>(
         dlsym(RTLD_DEFAULT, "rocprofiler_range_replay_begin"));
     auto* end_fn = reinterpret_cast<decltype(&rocprofiler_range_replay_end)>(
         dlsym(RTLD_DEFAULT, "rocprofiler_range_replay_end"));
 
-    if(begin_fn == nullptr || end_fn == nullptr)
+    if(!use_roctx && (begin_fn == nullptr || end_fn == nullptr))
     {
         fprintf(stderr, "[app] FAIL: the range replay API is not in this process\n");
         return EXIT_FAILURE;
     }
-
-    const auto* mode_env     = getenv("RR_APP_MODE");
-    const auto  mode         = std::string{mode_env != nullptr ? mode_env : "plain"};
-    const bool  second_queue = (mode == "multi-queue");
 
     int* acc     = nullptr;
     int* scratch = nullptr;
@@ -93,7 +97,9 @@ main()
     // allocation inside a range is itself a decline reason.
     HIP_CHECK(hipDeviceSynchronize());
 
-    if(const auto status = begin_fn(kRangeId); status != ROCPROFILER_STATUS_SUCCESS)
+    if(use_roctx)
+        roctxRangePushA(kRoctxRangeName);
+    else if(const auto status = begin_fn(kRangeId); status != ROCPROFILER_STATUS_SUCCESS)
     {
         fprintf(stderr,
                 "[app] FAIL: rocprofiler_range_replay_begin returned status %d\n",
@@ -101,11 +107,15 @@ main()
         return EXIT_FAILURE;
     }
 
-    // 0 -> 1 -> 5 -> 18
+    // 0 -> 1 -> 5 -> 18. In roctx mode the middle dispatch sits in a nested ROCTx range, whose pop
+    // must not close the replay range.
     for(uint64_t add = 1; add <= kRangeDispatches; ++add)
     {
+        const bool inner = use_roctx && add == 2;
+        if(inner) roctxRangePushA(kRoctxInnerName);
         step<<<1, 1>>>(acc, static_cast<int>(add));
         HIP_CHECK(hipGetLastError());
+        if(inner) roctxRangePop();
     }
 
     // A dispatch on a second queue inside the range. It writes `scratch`, not `acc`, so the
@@ -120,7 +130,9 @@ main()
     // from the range-entry snapshot, and the host has to have observed the live run first.
     HIP_CHECK(hipDeviceSynchronize());
 
-    if(const auto status = end_fn(); status != ROCPROFILER_STATUS_SUCCESS)
+    if(use_roctx)
+        roctxRangePop();
+    else if(const auto status = end_fn(); status != ROCPROFILER_STATUS_SUCCESS)
     {
         fprintf(stderr,
                 "[app] FAIL: rocprofiler_range_replay_end returned status %d\n",

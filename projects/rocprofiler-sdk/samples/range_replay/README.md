@@ -55,6 +55,7 @@ stage a distinct kernarg slot for each of them.
 |---|---|
 | `plain` (default) | Three dispatches on one stream |
 | `multi-queue` | The same, plus a dispatch on a second stream |
+| `roctx` | The plain dispatches inside a ROCTx range (`roctxRangePushA` / `roctxRangePop`) instead of range replay calls, with a nested ROCTx range around the middle dispatch |
 
 `multi-queue` also needs `GPU_MAX_HW_QUEUES` to be at least 2 (the CTest target pins it to 4).
 HIP pools hardware queues and round-robins streams onto them, so with a pool of one the two
@@ -67,6 +68,7 @@ streams would share a queue and the range would be replayed rather than declined
 | `range-replay-basic` | 4 passes | `REPLAYED` | The whole loop: one CONFIG, three PASS callbacks (passes 1-3), one CLOSE, and a zero divergence count. |
 | `range-replay-opt-out` | nothing | `NO_PASS_COUNT` | Leaving `pass_count_cb` NULL is the per-range opt-out: the range is still opened, tracked and closed, but no pass runs. |
 | `range-replay-decline` | 4 passes | `MULTI_QUEUE` | A range the SDK refuses. CLOSE names the reason, and the application's result is untouched. |
+| `range-replay-roctx` | 4 passes | `REPLAYED` | The tool, not the application, opens the range: from the push and pop of a ROCTx range with a known name. The nested ROCTx range inside it does not close it, and the divergence count is zero. This is how a tool replays phases that ROCTx-annotated codes, or Kokkos regions through the Kokkos Tools connector, already mark. |
 
 `range-replay-decline` is the shape every decline takes, not a special case. A range is replayed
 only when every recorded dispatch targets one queue on one agent, no HIP graph launch occurs

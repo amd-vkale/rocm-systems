@@ -155,7 +155,8 @@ interesting counters are.
 
 - **[Callback API and tool configuration](range_replay_callback_api.md)** — the
   `ROCPROFILER_CALLBACK_TRACING_RANGE_REPLAY` domain, its three operations, the payload struct,
-  pass-count semantics, the localized context toggles, and how a tool configures range replay.
+  pass-count semantics, the localized context toggles, how a tool configures range replay, and how
+  it opens ranges from ROCTx ranges and Kokkos regions.
 - **[Soundness and declining](range_replay_soundness.md)** — what makes a range replayable, the
   decline decision table and why each condition is checked, the cross-thread decline channel, the
   kernarg-recycling problem, the interceptor passthrough gate, and the optional divergence check.

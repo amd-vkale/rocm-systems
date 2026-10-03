@@ -26,6 +26,7 @@ endforeach()
 # against the real types without linking the SDK; see the target_link_libraries comment
 # below.
 find_package(rocprofiler-sdk REQUIRED COMPONENTS headers shared-library)
+find_package(rocprofiler-sdk-roctx REQUIRED)
 find_package(Threads REQUIRED)
 
 set_source_files_properties(main.cpp PROPERTIES LANGUAGE HIP)
@@ -48,15 +49,19 @@ function(add_range_replay_sample NAME CLIENT_SRC)
     # entry points with dlsym out of the preloaded client and links only the headers,
     # because linking the SDK into the HIP executable makes HIP report
     # hipErrorInvalidDeviceFunction on the first kernel launch on gfx942 (see
-    # samples/kernel_replay/CMakeLists.txt).
+    # samples/kernel_replay/CMakeLists.txt). ROCTx is a separate library and links
+    # normally; RR_APP_MODE=roctx brackets the range with it instead of calling the SDK.
     target_link_libraries(
         ${NAME}
         PRIVATE rocprofiler-sdk::rocprofiler-sdk-headers
+                rocprofiler-sdk-roctx::rocprofiler-sdk-roctx
                 rocprofiler-sdk::samples-build-flags Threads::Threads ${CMAKE_DL_LIBS})
     add_dependencies(${NAME} ${NAME}-client)
 
     rocprofiler_samples_get_preload_env(PRELOAD_ENV ${NAME}-client)
-    rocprofiler_samples_get_ld_library_path_env(LIBRARY_PATH_ENV ${NAME}-client)
+    rocprofiler_samples_get_ld_library_path_env(
+        LIBRARY_PATH_ENV ${NAME}-client
+        rocprofiler-sdk-roctx::rocprofiler-sdk-roctx-shared-library)
     set(_env ${PRELOAD_ENV} ${LIBRARY_PATH_ENV} ${arg_ENVIRONMENT})
 
     add_test(NAME ${NAME} COMMAND $<TARGET_FILE:${NAME}>)
@@ -84,3 +89,8 @@ add_range_replay_sample(range-replay-opt-out opt_out_client.cpp)
 # but pinning it means the sample does not depend on that default.
 add_range_replay_sample(range-replay-decline decline_client.cpp ENVIRONMENT
                         "RR_APP_MODE=multi-queue" "GPU_MAX_HW_QUEUES=4")
+
+# The application makes no range replay calls here: the client opens the range from the
+# application's ROCTx push/pop, and a nested ROCTx range inside it must not close it.
+add_range_replay_sample(range-replay-roctx roctx_client.cpp ENVIRONMENT
+                        "RR_APP_MODE=roctx" "ROCPROF_RANGE_REPLAY_VERIFY=1")

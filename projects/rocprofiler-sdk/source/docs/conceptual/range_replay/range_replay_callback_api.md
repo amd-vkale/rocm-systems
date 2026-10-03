@@ -164,6 +164,47 @@ beta does not cover. When it is enabled, `begin` warns once and the range is rec
 declined with `ROCPROFILER_RANGE_REPLAY_STATUS_UNSUPPORTED_QUEUE_PATH`, rather than replayed through
 a path that cannot re-submit recorded packets correctly.
 
+## Opening ranges from ROCTx and Kokkos regions
+
+`begin` and `end` are ordinary calls on the calling thread, so a tool can place them for an
+application that already marks its phases. `samples/range_replay/roctx_client.cpp` opens a range
+when a ROCTx range with a known name is pushed and closes it when that range is popped; the
+application (`RR_APP_MODE=roctx`) makes no range replay calls.
+
+- `roctxRangePushA` / `roctxRangePop` are thread-scoped, like replay ranges. Open the range at the
+  push's `PHASE_EXIT` and close it at the matching pop's `PHASE_ENTER`, so the replay window falls
+  inside the ROCTx range it belongs to.
+- `roctxRangePop` carries no name. The tool keeps its own per-thread stack to tell the pop that
+  closes its range from one nested inside it. Replay ranges do not nest, so only the outermost
+  occurrence of a name opens one.
+- `roctxRangeStart` / `roctxRangeStop` ranges are process-wide and can start and stop on different
+  threads, so they cannot delimit a replay range.
+- The pop that closes the range returns only after the replay passes, so a marker trace that times
+  ROCTx ranges by their push and pop shows the range lasting as long as all of its passes.
+- Replayed passes re-submit recorded packets; host code does not run again, so ROCTx calls inside
+  the range are not repeated. A tool that names dispatches after the innermost open ROCTx range has
+  to name replayed dispatches after their pass-0 counterparts: during replay, the only open ROCTx
+  range is the one being closed.
+- The first occurrence of a range is often declined, because one-time initialization runs inside
+  it. Run the range once before measuring it, or have the tool skip the first occurrence.
+
+`rocprofv3 --kokkos-trace` loads the SDK's Kokkos Tools connector
+(`librocprofiler-sdk-tool-kokkosp.so`). It turns every `Kokkos::Profiling::pushRegion` /
+`popRegion` into `roctxRangePush` / `roctxRangePop` on the calling thread and wraps each
+`parallel_for`, `parallel_reduce` and `parallel_scan` in a ROCTx range named after its label, so a
+tool can replay a Kokkos region by name without changing the application. It maps profile sections
+and fences to `roctxRangeStart` / `roctxRangeStop`, so neither can delimit a replay range. What
+Kokkos' HIP backend (Kokkos 4) does inside the region decides whether it is replayed:
+
+| Inside the region | Outcome |
+|---|---|
+| Kernels whose functor is smaller than 512 bytes | Replayed: the functor travels in the kernel arguments, which the recorder copies |
+| Kernels whose functor is 512 bytes or larger | Declined (`MEMORY_COPY_IN_RANGE`): Kokkos stages the functor through a reused host buffer; see [Soundness and declining](range_replay_soundness.md). `Kokkos::Experimental::WorkItemProperty::HintLightWeight` passes functors up to 4 KB in the kernel arguments instead |
+| `parallel_reduce` into a host scalar | Replayed |
+| `Kokkos::deep_copy` without an execution-space argument | Declined (`MULTI_QUEUE`): the copy is not on the execution space's stream |
+| The first kernel launch from each translation unit | Declined (`MEMORY_COPY_IN_RANGE` or `MULTI_QUEUE`): Kokkos' atomics library copies its lock-array pointers to the device on the default stream |
+| A `View` allocated inside the region | Declined (`MEMORY_COPY_IN_RANGE`): Kokkos copies the allocation's header from host memory |
+
 ## Source reference
 
 All paths are relative to `projects/rocprofiler-sdk/`.
