@@ -29,6 +29,9 @@
 #include <gtest/gtest.h>
 
 #include <cstdint>
+#include <cstring>
+#include <unordered_map>
+#include <vector>
 
 namespace range_replay = ::rocprofiler::range_replay;
 
@@ -294,4 +297,62 @@ TEST(range_replay_state, code_object_unload_with_no_range_open_is_harmless)
     ASSERT_FALSE(range_replay::any_range_open());
     range_replay::note_code_object_unload();
     EXPECT_FALSE(range_replay::any_range_open());
+}
+
+TEST(range_replay_state, rocclr_copy_kernels_are_classified_by_symbol_name)
+{
+    using kind = range_replay::copy_kernel_kind_t;
+    using range_replay::classify_copy_kernel;
+
+    // Symbol names carry the ".kd" descriptor suffix; the classification must not depend on it.
+    EXPECT_EQ(classify_copy_kernel("__amd_rocclr_copyBuffer.kd"), kind::buffer);
+    EXPECT_EQ(classify_copy_kernel("__amd_rocclr_copyBuffer"), kind::buffer);
+    EXPECT_EQ(classify_copy_kernel("__amd_rocclr_copyBufferAligned.kd"), kind::buffer);
+    EXPECT_EQ(classify_copy_kernel("__amd_rocclr_copyBufferRect.kd"), kind::buffer);
+    EXPECT_EQ(classify_copy_kernel("__amd_rocclr_copyBufferRectAligned.kd"), kind::buffer);
+    EXPECT_EQ(classify_copy_kernel("__amd_rocclr_copyBufferToImage.kd"), kind::buffer);
+    EXPECT_EQ(classify_copy_kernel("__amd_rocclr_copyBufferBatch.kd"), kind::batch);
+
+    // Fills take their pattern in the kernarg segment, which is recorded, so they replay exactly.
+    EXPECT_EQ(classify_copy_kernel("__amd_rocclr_fillBufferAligned.kd"), kind::none);
+    EXPECT_EQ(classify_copy_kernel("__amd_rocclr_copyImageToBuffer.kd"), kind::none);
+    EXPECT_EQ(classify_copy_kernel("_Z6k_stepPii.kd"), kind::none);
+    EXPECT_EQ(classify_copy_kernel(""), kind::none);
+    EXPECT_EQ(classify_copy_kernel(nullptr), kind::none);
+}
+
+TEST(range_replay_state, copy_source_is_read_from_the_first_kernel_argument)
+{
+    using kind = range_replay::copy_kernel_kind_t;
+
+    constexpr uint64_t src     = 0x7f12'3456'7000ULL;
+    constexpr uint64_t dst     = 0x7e00'0000'1000ULL;
+    auto               kernarg = std::vector<uint8_t>(56, 0);
+    std::memcpy(kernarg.data(), &src, sizeof(src));
+    std::memcpy(kernarg.data() + sizeof(src), &dst, sizeof(dst));
+
+    const auto got = range_replay::copy_source_address(kind::buffer, kernarg);
+    ASSERT_TRUE(got.has_value());
+    EXPECT_EQ(*got, src);
+
+    // A batch copy's sources live in a descriptor list, and a truncated kernarg holds no pointer:
+    // neither yields an address, which the recorder treats as "not covered".
+    EXPECT_FALSE(range_replay::copy_source_address(kind::batch, kernarg).has_value());
+    EXPECT_FALSE(range_replay::copy_source_address(kind::none, kernarg).has_value());
+    EXPECT_FALSE(
+        range_replay::copy_source_address(kind::buffer, std::vector<uint8_t>(4, 0)).has_value());
+}
+
+TEST(range_replay_state, copy_source_coverage_follows_allocation_bounds)
+{
+    auto       storage = std::vector<uint8_t>(0x200);
+    auto*      base    = storage.data();
+    const auto lo      = reinterpret_cast<uint64_t>(base);
+    const auto allocs  = std::unordered_map<void*, size_t>{{base, 0x100}};
+
+    EXPECT_TRUE(range_replay::address_in_allocations(lo, allocs));
+    EXPECT_TRUE(range_replay::address_in_allocations(lo + 0xff, allocs));
+    EXPECT_FALSE(range_replay::address_in_allocations(lo + 0x100, allocs));
+    EXPECT_FALSE(range_replay::address_in_allocations(lo - 1, allocs));
+    EXPECT_FALSE(range_replay::address_in_allocations(lo, {}));
 }

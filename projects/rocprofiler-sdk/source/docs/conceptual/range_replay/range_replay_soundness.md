@@ -21,6 +21,7 @@ are skipped, and the reason arrives as the `CLOSE` callback's `status`.
 |---|---|---|
 | One queue, one agent | The snapshot is agent-scoped, and the replay window's lock is per-agent. A range spanning two agents would restore half its state | declined |
 | No device write from outside the recording | A copy or a foreign kernel writes state no recorded dispatch produces, so a replayed pass runs without it | declined |
+| Every recorded copy reads memory the snapshot restores | HIP lowers small host-to-device copies to copy kernels that read their source through a pointer. A replayed pass re-reads that source as it is when the pass runs, which the application may have overwritten since | declined at record time |
 | Allocation set unchanged | The snapshot names specific base pointers. If one was freed and its address reused, restoring writes into memory the application has repurposed | declined |
 | Kernarg bytes available at replay time | HIP recycles a kernarg block as soon as its kernel completes | bytes copied at record time |
 | Recorded code stays loaded, and its module variables are in the snapshot | An unload frees code a recorded packet points at; a code object loaded after the entry snapshot has `__device__` / `__constant__` globals the snapshot never saw | declined |
@@ -38,6 +39,7 @@ GPU dependencies so the table below can be unit tested directly.
 | Dispatch to a second agent | `MULTI_AGENT` | record time |
 | HIP graph launch inside the range | `GRAPH_LAUNCH` | record time |
 | Kernarg segment size not resolvable for a kernel | `UNKNOWN_KERNARG_SIZE` | record time |
+| A copy kernel's source is not tracked device memory of the bound agent | `MEMORY_COPY_IN_RANGE` | record time |
 | A kernel from a code object loaded after the range bound | `CODE_OBJECT_CHANGED_IN_RANGE` | record time |
 | Recorded dispatches exceed the budget (4096) | `PROGRAM_TOO_LARGE` | record time |
 | Another thread dispatches to the bound agent | `CONCURRENT_DISPATCH` | cross-thread, folded in |
@@ -197,10 +199,15 @@ state of their own, and each piece is covered, declined, or outside what range r
 | Code objects loaded inside the range | A new executable. HIP loads a module lazily on its first launch, and JITs (hipRTC, Triton) load at run time | A dispatch from one declines the range (`CODE_OBJECT_CHANGED_IN_RANGE`), as does unloading any code object |
 | Hidden (implicit) kernel arguments | The tail of the kernarg segment | Copied: the copy is sized by the code object's `.kernarg_segment_size`, which includes them. A kernel without that metadata, such as hand-written assembly, declines with `UNKNOWN_KERNARG_SIZE` |
 | Kernarg preloading (gfx94x and later) | SGPRs the hardware fills from the kernarg segment at wave launch | Unchanged: the patched packet points at the staged copy, so the preload reads the recorded bytes |
+| Copy kernels HIP adds | ROCclr copy kernels (`__amd_rocclr_copyBuffer*`) that HIP submits on the application's queue for small host-to-device copies, `hipMemcpyToSymbol`, and device-to-device copies. Their kernarg segment holds the source pointer, not the source bytes | A copy whose source is tracked device memory of the bound agent is replayed: the snapshot restores the source. Any other source declines the range (`MEMORY_COPY_IN_RANGE`), because the replay would re-read it as it is when the pass runs. Device-to-host copies are replayed and write their destination again on every pass |
+| Kokkos functors of 512 bytes or more | Kokkos' HIP backend copies such a functor into one pinned host staging buffer, then into `__constant__` memory (or device scratch above 32 KB), before every launch, and reuses the staging buffer for the next launch | Declined (`MEMORY_COPY_IN_RANGE`) by the copy-kernel rule above. Without it, every replayed launch in the range would read the last launch's functor. Requesting `Kokkos::Experimental::WorkItemProperty::HintLightWeight` passes functors up to 4 KB in the kernel arguments instead, which range replay records |
 | `printf` | Host memory the runtime names in a hidden argument. The compiler picks the path: with `-mprintf-kind=hostcall`, HIP's default, a host thread prints each call while the kernel runs; with `-mprintf-kind=buffered`, the runtime clears a host buffer before the launch and prints it after the kernel completes | **Not handled.** Replayed passes execute the calls again. With hostcall `printf`, every pass prints again. With buffered `printf`, the replayed output lands after the runtime has printed the application's, and the next `printf` launch clears it, so it is never printed. Kernel replay differs: its passes run before that drain, so buffered output appears once per pass |
 
 In practice: run a range once before measuring it, so lazily loaded modules are already resident when
-it binds, and keep kernels that call `printf` out of ranges.
+it binds, and keep kernels that call `printf` out of ranges. Kokkos is a case in point: on the first
+kernel launch from each translation unit, its atomics library copies two lock-array pointers to the
+device with a synchronous `hipMemcpyToSymbol` on the default stream, so a range around that first
+launch declines with `MULTI_QUEUE`. Later occurrences of the same range replay.
 
 Replay passes run inside `end()`, after the application's own execution of the range, so GPU event
 timings the application records inside the range are unaffected. Kernel replay differs here: its

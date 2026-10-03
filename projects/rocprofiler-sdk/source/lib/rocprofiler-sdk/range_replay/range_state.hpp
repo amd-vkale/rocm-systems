@@ -50,6 +50,8 @@
 #include <cstddef>
 #include <cstdint>
 #include <memory>
+#include <optional>
+#include <unordered_map>
 #include <vector>
 
 namespace rocprofiler
@@ -178,6 +180,32 @@ struct range_context_t
     uint64_t ancestor_corr_id = 0;
 };
 
+// HIP lowers small host-to-device copies, hipMemcpyToSymbol, and runtime staging such as Kokkos'
+// functor copies to ROCclr copy kernels that read their source through a pointer argument. The
+// recorder copies their kernarg bytes, not what the source pointer points at, so a replayed pass
+// re-reads the source as it is when the pass runs. Unless the source is device memory the entry
+// snapshot restores, the application may have overwritten it since (Kokkos reuses one pinned
+// staging buffer for every launch), and the replay silently copies other bytes.
+enum class copy_kernel_kind_t
+{
+    none,    // not a ROCclr copy kernel
+    buffer,  // __amd_rocclr_copyBuffer*: the source pointer is the first kernel argument
+    batch,   // __amd_rocclr_copyBufferBatch: sources sit in a descriptor list, which is not
+             // inspected
+};
+
+copy_kernel_kind_t
+classify_copy_kernel(const char* kernel_name);
+
+// Source address of a recorded copy kernel, read from its recorded kernarg bytes, or nullopt when
+// it cannot be determined (a batch copy, or kernarg bytes too short to hold a pointer).
+std::optional<uint64_t>
+copy_source_address(copy_kernel_kind_t kind, const std::vector<uint8_t>& kernarg);
+
+// True when `address` lies inside one of `allocations` (base pointer -> size in bytes).
+bool
+address_in_allocations(uint64_t address, const std::unordered_map<void*, size_t>& allocations);
+
 // Publish a decline reason from a thread that does not own the range.
 void
 publish_external_decline(external_decline_t& channel, rocprofiler_range_replay_status_t reason);
@@ -217,7 +245,8 @@ take_range(range_context_t& out);
 // Called from the queue path for every submission made by a thread with an open range. Records the
 // submission's dispatch packets (copying out their kernarg bytes) or declines the range. Must be
 // called before the packets are submitted, while the kernarg blocks they point at still hold this
-// launch's arguments.
+// launch's arguments. A copy kernel whose source is not tracked device memory of the range's agent
+// declines the range with MEMORY_COPY_IN_RANGE (see copy_kernel_kind_t).
 void
 note_submission(const hsa::Queue&              queue,
                 const hsa::rocprofiler_packet* packets,

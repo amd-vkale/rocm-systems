@@ -29,6 +29,7 @@
 #include "lib/rocprofiler-sdk/code_object/hsa/code_object.hpp"
 #include "lib/rocprofiler-sdk/hsa/agent_cache.hpp"
 #include "lib/rocprofiler-sdk/hsa/queue.hpp"
+#include "lib/rocprofiler-sdk/kernel_replay/memory_tracker.hpp"
 
 #include <rocprofiler-sdk/agent.h>
 #include <rocprofiler-sdk/fwd.h>
@@ -41,6 +42,7 @@
 #include <cstring>
 #include <memory>
 #include <optional>
+#include <string_view>
 #include <unordered_map>
 #include <vector>
 
@@ -82,14 +84,15 @@ registry()
 thread_local std::unique_ptr<range_context_t> tl_range     = {};
 thread_local bool                             tl_replaying = false;
 
-// kernel_object -> (kernarg segment size, alignment, parent code object), memoized. Resolving it
-// means walking the loaded code objects' symbols, which is far too slow to repeat per recorded
-// dispatch.
+// kernel_object -> (kernarg segment size, alignment, parent code object, copy kernel kind),
+// memoized. Resolving it means walking the loaded code objects' symbols, which is far too slow to
+// repeat per recorded dispatch.
 struct kernarg_layout_t
 {
-    uint32_t size           = 0;
-    uint32_t alignment      = 0;
-    uint64_t code_object_id = 0;
+    uint32_t           size           = 0;
+    uint32_t           alignment      = 0;
+    uint64_t           code_object_id = 0;
+    copy_kernel_kind_t copy_kind      = copy_kernel_kind_t::none;
 };
 
 using kernarg_cache_t = std::unordered_map<uint64_t, kernarg_layout_t>;
@@ -132,8 +135,10 @@ kernarg_layout(uint64_t kernel_object)
             if(!symbol) continue;
             const auto& data = symbol->rocp_data;
             if(data.kernel_object != kernel_object) continue;
-            found = kernarg_layout_t{
-                data.kernarg_segment_size, data.kernarg_segment_alignment, data.code_object_id};
+            found = kernarg_layout_t{data.kernarg_segment_size,
+                                     data.kernarg_segment_alignment,
+                                     data.code_object_id,
+                                     classify_copy_kernel(data.kernel_name)};
             break;
         }
     });
@@ -171,7 +176,50 @@ set_kernarg_address(hsa::rocprofiler_packet& packet, void* address)
 {
     packet.kernel_dispatch.kernarg_address = address;
 }
+
+// Only allocations the entry snapshot restores count: tracked device memory owned by the range's
+// agent. Module variables are restored too but are not in this inventory, so a copy out of one
+// declines; that is conservative, and such copies are rare inside a range.
+bool
+copy_source_covered(uint64_t address, hsa_agent_t agent)
+{
+    namespace memory_tracker = ::rocprofiler::kernel_replay::memory_tracker;
+    if(!memory_tracker::tracking_enabled()) return false;
+    return address_in_allocations(address, memory_tracker::snap_inventory(agent));
+}
 }  // namespace
+
+copy_kernel_kind_t
+classify_copy_kernel(const char* kernel_name)
+{
+    if(kernel_name == nullptr) return copy_kernel_kind_t::none;
+    const auto name = std::string_view{kernel_name};
+    if(name.rfind("__amd_rocclr_copyBufferBatch", 0) == 0) return copy_kernel_kind_t::batch;
+    // copyBuffer, copyBufferAligned, copyBufferRect, copyBufferRectAligned and copyBufferToImage
+    // all take the source buffer as their first argument.
+    if(name.rfind("__amd_rocclr_copyBuffer", 0) == 0) return copy_kernel_kind_t::buffer;
+    return copy_kernel_kind_t::none;
+}
+
+std::optional<uint64_t>
+copy_source_address(copy_kernel_kind_t kind, const std::vector<uint8_t>& kernarg)
+{
+    if(kind != copy_kernel_kind_t::buffer || kernarg.size() < sizeof(uint64_t)) return std::nullopt;
+    auto source = uint64_t{0};
+    std::memcpy(&source, kernarg.data(), sizeof(source));
+    return source;
+}
+
+bool
+address_in_allocations(uint64_t address, const std::unordered_map<void*, size_t>& allocations)
+{
+    for(const auto& [base, size] : allocations)
+    {
+        const auto lo = reinterpret_cast<uint64_t>(base);
+        if(address >= lo && address - lo < size) return true;
+    }
+    return false;
+}
 
 bool
 range_record_t::eligible() const
@@ -419,6 +467,16 @@ note_submission(const hsa::Queue&              queue,
             dispatch.kernarg.assign(args, args + layout->size);
         }
         set_kernarg_address(dispatch.packet, nullptr);
+
+        if(layout->copy_kind != copy_kernel_kind_t::none)
+        {
+            const auto source = copy_source_address(layout->copy_kind, dispatch.kernarg);
+            if(!source || !copy_source_covered(*source, ctx->hsa_agent))
+            {
+                ctx->record.decline(ROCPROFILER_RANGE_REPLAY_STATUS_MEMORY_COPY_IN_RANGE);
+                return;
+            }
+        }
 
         if(!ctx->record.add_dispatch(std::move(dispatch))) return;
     }
