@@ -60,6 +60,8 @@ constexpr auto stride_kernel_name = "kernel_replay_blit_stride";
 using kernel_abi::bytes_per_tile;
 using kernel_abi::copy_descriptor_t;
 using kernel_abi::kernel_args_t;
+using kernel_abi::small_region_limit;
+using kernel_abi::small_regions_per_group;
 using kernel_abi::workgroup_size;
 
 struct kernel_info_t
@@ -309,6 +311,69 @@ packet_info::retire()
     return m_impl->status;
 }
 
+std::optional<copy_plan_t>
+plan_copy(const std::vector<copy_region_t>& regions, uint32_t cu_count)
+{
+    if(regions.empty()) return std::nullopt;
+
+    auto plan = copy_plan_t{};
+    plan.descriptors.reserve(regions.size());
+
+    // Small regions first: workgroups [0, small_groups) index them directly.
+    for(const auto& region : regions)
+    {
+        if(!region.dst || !region.src || region.size == 0) return std::nullopt;
+        if(region.size <= small_region_limit)
+            plan.descriptors.emplace_back(copy_descriptor_t{reinterpret_cast<uint64_t>(region.src),
+                                                            reinterpret_cast<uint64_t>(region.dst),
+                                                            region.size,
+                                                            0,
+                                                            0});
+    }
+    const auto small_count = static_cast<uint64_t>(plan.descriptors.size());
+
+    auto total_tiles = uint64_t{0};
+    for(const auto& region : regions)
+    {
+        if(region.size <= small_region_limit) continue;
+        const auto tile_count =
+            region.size / bytes_per_tile + static_cast<uint64_t>(region.size % bytes_per_tile != 0);
+        if(tile_count > std::numeric_limits<uint64_t>::max() - total_tiles) return std::nullopt;
+        plan.descriptors.emplace_back(copy_descriptor_t{reinterpret_cast<uint64_t>(region.src),
+                                                        reinterpret_cast<uint64_t>(region.dst),
+                                                        region.size,
+                                                        total_tiles,
+                                                        tile_count});
+        total_tiles += tile_count;
+    }
+
+    const auto small_groups = small_count / small_regions_per_group +
+                              static_cast<uint64_t>(small_count % small_regions_per_group != 0);
+    if(total_tiles > std::numeric_limits<uint64_t>::max() - small_groups) return std::nullopt;
+    const auto total_groups = small_groups + total_tiles;
+
+    constexpr auto max_launched_groups =
+        uint64_t{std::numeric_limits<uint32_t>::max()} / workgroup_size;
+    plan.use_stride = (total_groups > max_launched_groups);
+
+    auto launched_groups = total_groups;
+    if(plan.use_stride)
+    {
+        constexpr auto groups_per_cu = uint64_t{2};
+        if(cu_count == 0) return std::nullopt;
+        launched_groups = std::min(total_groups, static_cast<uint64_t>(cu_count) * groups_per_cu);
+    }
+    if(launched_groups == 0 || launched_groups > max_launched_groups) return std::nullopt;
+
+    plan.args = kernel_args_t{0,
+                              static_cast<uint64_t>(plan.descriptors.size()),
+                              small_count,
+                              small_groups,
+                              total_groups,
+                              launched_groups};
+    return plan;
+}
+
 std::optional<packet_info>
 create(const hsa::Queue& queue, const std::vector<copy_region_t>& regions)
 {
@@ -320,38 +385,11 @@ create(const hsa::Queue& queue, const std::vector<copy_region_t>& regions)
     auto* ext   = hsa::get_amd_ext_table();
     if(!state || !core || !ext || !core->hsa_signal_store_screlease_fn) return std::nullopt;
 
-    auto descriptor_data = std::vector<copy_descriptor_t>{};
-    descriptor_data.reserve(regions.size());
-    auto total_tiles = uint64_t{0};
-    for(const auto& region : regions)
-    {
-        if(!region.dst || !region.src || region.size == 0) return std::nullopt;
-        const auto tile_count =
-            region.size / bytes_per_tile + static_cast<uint64_t>(region.size % bytes_per_tile != 0);
-        if(tile_count > std::numeric_limits<uint64_t>::max() - total_tiles) return std::nullopt;
-        descriptor_data.emplace_back(copy_descriptor_t{reinterpret_cast<uint64_t>(region.src),
-                                                       reinterpret_cast<uint64_t>(region.dst),
-                                                       region.size,
-                                                       total_tiles,
-                                                       tile_count});
-        total_tiles += tile_count;
-    }
+    auto plan = plan_copy(regions, agent.get_rocp_agent()->cu_count);
+    if(!plan) return std::nullopt;
+    const auto& descriptor_data = plan->descriptors;
 
-    constexpr auto max_launched_tiles =
-        uint64_t{std::numeric_limits<uint32_t>::max()} / workgroup_size;
-    const auto use_stride = (total_tiles > max_launched_tiles);
-
-    auto launched_tiles = total_tiles;
-    if(use_stride)
-    {
-        constexpr auto blocks_per_cu = uint64_t{2};
-        const auto     cu_count      = agent.get_rocp_agent()->cu_count;
-        if(cu_count == 0) return std::nullopt;
-        launched_tiles = std::min(total_tiles, static_cast<uint64_t>(cu_count) * blocks_per_cu);
-    }
-    if(launched_tiles == 0 || launched_tiles > max_launched_tiles) return std::nullopt;
-
-    const auto& kernel = use_stride ? state->stride_kernel : state->full_kernel;
+    const auto& kernel = plan->use_stride ? state->stride_kernel : state->full_kernel;
     if(kernel.kernarg_size < sizeof(kernel_args_t)) return std::nullopt;
     const auto descriptor_offset = (kernel.kernarg_size + 15) & ~size_t{15};
     if(regions.size() > std::numeric_limits<uint32_t>::max() ||
@@ -407,13 +445,11 @@ create(const hsa::Queue& queue, const std::vector<copy_region_t>& regions)
     std::memcpy(descriptor_memory,
                 descriptor_data.data(),
                 descriptor_data.size() * sizeof(descriptor_data[0]));
-    const auto kernel_args = kernel_args_t{reinterpret_cast<uint64_t>(descriptor_memory),
-                                           static_cast<uint64_t>(descriptor_data.size()),
-                                           total_tiles,
-                                           launched_tiles};
+    auto kernel_args                = plan->args;
+    kernel_args.descriptors_address = reinterpret_cast<uint64_t>(descriptor_memory);
     std::memcpy(impl->kernarg, &kernel_args, sizeof(kernel_args));
 
-    const auto grid_size_x = static_cast<uint32_t>(launched_tiles * workgroup_size);
+    const auto grid_size_x = static_cast<uint32_t>(kernel_args.launched_groups * workgroup_size);
 
     auto packet   = hsa_kernel_dispatch_packet_t{};
     packet.header = HSA_PACKET_TYPE_KERNEL_DISPATCH << HSA_PACKET_HEADER_TYPE;

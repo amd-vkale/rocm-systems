@@ -22,6 +22,8 @@
 
 #pragma once
 
+#include "lib/rocprofiler-sdk/kernel_replay/blit-copy-kernel.hpp"
+
 #include <hsa/hsa.h>
 #include <hsa/hsa_api_trace.h>
 
@@ -52,6 +54,18 @@ struct copy_region_t
 
 hsa_status_t
 prepare(const hsa::Queue& queue);
+
+// Descriptors and launch shape for one blit over `regions`; descriptors_address is left for the
+// caller to fill in once the descriptors are in kernarg memory.
+struct copy_plan_t
+{
+    std::vector<kernel_abi::copy_descriptor_t> descriptors = {};
+    kernel_abi::kernel_args_t                  args        = {};
+    bool                                       use_stride  = false;
+};
+
+std::optional<copy_plan_t>
+plan_copy(const std::vector<copy_region_t>& regions, uint32_t cu_count);
 
 class packet_info
 {
