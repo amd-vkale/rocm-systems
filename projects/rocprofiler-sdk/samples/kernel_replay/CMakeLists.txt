@@ -37,12 +37,6 @@ rocprofiler_sdk_spm_disabled(IS_SPM_DISABLED)
 # handed its path, and skip them when it is absent.
 rocprofiler_sdk_find_trace_decoder()
 
-# PC sampling is agent-wide and does not consult localized pass overrides yet. Samples
-# that assign counters and PC sampling to different replay passes still run both on every
-# pass and can hit the MI2xx/MI3xx clock-gating conflict. Keep those ctests disabled until
-# the service honors local_context_override() at collection time.
-set(KR_PC_SAMPLING_PASS_PARTITION_UNSUPPORTED ON)
-
 function(add_kernel_replay_sample NAME CLIENT_SRC)
     cmake_parse_arguments(arg "PC_SAMPLING;SPM;ATT" "" "ENVIRONMENT" ${ARGN})
 
@@ -77,11 +71,7 @@ function(add_kernel_replay_sample NAME CLIENT_SRC)
     # unstable gate. PC sampling / SPM still drop out when unavailable.
     set(_disabled OFF)
     if(arg_PC_SAMPLING)
-        if(KR_PC_SAMPLING_PASS_PARTITION_UNSUPPORTED)
-            set(_disabled ON)
-        else()
-            set(_disabled "${IS_PC_SAMPLING_DISABLED}")
-        endif()
+        set(_disabled "${IS_PC_SAMPLING_DISABLED}")
     endif()
     if(arg_SPM AND IS_SPM_DISABLED)
         set(_disabled ON)
@@ -108,14 +98,7 @@ endfunction()
 add_kernel_replay_sample(kernel-replay-basic basic_client.cpp)
 add_kernel_replay_sample(kernel-replay-basic-user-data basic_client_with_user_data.cpp)
 add_kernel_replay_sample(kernel-replay-counters counters_client.cpp)
-add_kernel_replay_sample(kernel-replay-counters-then-pc-sampling
-                         counters_then_pc_sampling_client.cpp PC_SAMPLING)
 add_kernel_replay_sample(kernel-replay-att att_client.cpp ATT)
 add_kernel_replay_sample(kernel-replay-spm spm_client.cpp SPM)
-add_kernel_replay_sample(
-    kernel-replay-services-first service_sequence_client.cpp PC_SAMPLING SPM ATT
-    ENVIRONMENT "KR_SERVICE_ORDER=services-first")
-add_kernel_replay_sample(kernel-replay-services-last service_sequence_client.cpp
-                         PC_SAMPLING SPM ATT ENVIRONMENT "KR_SERVICE_ORDER=services-last")
 add_kernel_replay_sample(kernel-replay-opt-out opt_out_client.cpp)
 add_kernel_replay_sample(kernel-replay-early-exit early_exit_client.cpp)

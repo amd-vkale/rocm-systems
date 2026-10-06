@@ -23,11 +23,11 @@
 // Unit tests for the kernel-replay CONFIG/PASS callback user_data lifecycle.
 //
 // The value a tool writes into user_data during CONFIG PHASE_ENTER is captured as the
-// sequence-wide user_data (execute_config_phase_enter -> plan.user_data,
-// kernel_replay/replay_callbacks.cpp:232-233). Every pass is then handed a fresh copy of that
-// value (execute_pass_phase_enter re-seeds each pass's context slot from plan.user_data,
-// replay_callbacks.cpp:285 + :292-293), and a pass's PHASE_ENTER and PHASE_EXIT share that one
-// slot because the SDK reuses the same pass_context_state_t for both (execute_pass_phase_exit).
+// sequence-wide user_data (execute_config_phase_enter -> plan.user_data, in
+// kernel_replay/replay_callbacks.cpp). Every pass is then handed a fresh copy of that value
+// (execute_pass_phase_enter re-seeds each pass's context slot from plan.user_data), and a pass's
+// PHASE_ENTER and PHASE_EXIT share that one slot because the SDK reuses the same
+// pass_context_state_t for both (execute_pass_phase_exit).
 // Consequences the tests below pin down:
 //   * CONFIG EXIT and every PASS callback observe the CONFIG-ENTER value by default.
 //   * A write during a PASS ENTER is visible in that same PASS EXIT.
@@ -36,9 +36,8 @@
 // This drives the real generic tracing callback dispatch (tracing::execute_phase_enter_callbacks /
 // execute_phase_exit_callbacks) -- the actual mechanism that hands &user_data to the tool and lets
 // a write persist in the caller's context vector -- against a hand-built callback context. The
-// per-pass seed/reset around those calls mirrors the replay loop exactly (see the line references
-// above). No GPU / HSA / runtime registration is involved, so the test runs unconditionally, like
-// kernel_replay/tests/local_context.cpp.
+// per-pass seed/reset around those calls mirrors the replay loop exactly (see the functions named
+// above). No GPU / HSA / runtime registration is involved, so the test runs unconditionally.
 
 #include "lib/rocprofiler-sdk/context/context.hpp"
 #include "lib/rocprofiler-sdk/context/domain.hpp"
@@ -206,7 +205,7 @@ run_replay(observations& obs, uint64_t n_passes)
     enable_replay_domains(ctx, obs);
 
     // CONFIG: tool writes user_data in ENTER; capture it as the sequence-wide value the way
-    // execute_config_phase_enter does (replay_callbacks.cpp:232-233). EXIT then observes it.
+    // execute_config_phase_enter does. EXIT then observes it.
     uint64_t plan_user_data = 0;
     {
         auto cfg = trc::callback_context_data_vec_t{};
@@ -225,7 +224,7 @@ run_replay(observations& obs, uint64_t n_passes)
                                            ROCPROFILER_KERNEL_REPLAY_CONFIG,
                                            payload);
 
-        plan_user_data = cfg.front().user_data.value;  // capture (replay_callbacks.cpp:232-233)
+        plan_user_data = cfg.front().user_data.value;  // capture, as plan.user_data
 
         trc::execute_phase_exit_callbacks(cfg,
                                           corr,
@@ -235,8 +234,8 @@ run_replay(observations& obs, uint64_t n_passes)
     }
 
     // PASS loop. Each pass gets a fresh context vector (execute_pass_phase_enter's
-    // out_pass_state = {}, replay_callbacks.cpp:285) re-seeded from plan.user_data (:292-293), and
-    // ENTER + EXIT reuse that same vector (execute_pass_phase_exit reuses pass_state.contexts).
+    // out_pass_state = {}) re-seeded from plan.user_data, and ENTER + EXIT reuse that same vector
+    // (execute_pass_phase_exit reuses pass_state.contexts).
     for(uint64_t pass = 0; pass < n_passes; ++pass)
     {
         auto pc = trc::callback_context_data_vec_t{};

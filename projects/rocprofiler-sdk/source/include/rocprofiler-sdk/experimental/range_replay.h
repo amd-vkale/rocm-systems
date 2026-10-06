@@ -123,9 +123,6 @@ typedef struct rocprofiler_callback_tracing_range_replay_data_t
     uint64_t current_pass;
     uint64_t total_passes;
 
-    rocprofiler_status_t (*replay_local_start_context_cb)(rocprofiler_context_id_t context_id);
-    rocprofiler_status_t (*replay_local_stop_context_cb)(rocprofiler_context_id_t context_id);
-
     rocprofiler_agent_id_t            agent_id;
     uint64_t                          dispatch_count;
     rocprofiler_range_replay_status_t status;
@@ -149,13 +146,6 @@ typedef struct rocprofiler_callback_tracing_range_replay_data_t
     ///
     /// @var total_passes
     /// @brief [PASS] Total passes if known (the value @c pass_count_cb returned), else 0.
-    ///
-    /// @var replay_local_start_context_cb
-    /// @var replay_local_stop_context_cb
-    /// @brief [PASS] Localized context control, with the same semantics as the kernel replay
-    /// toggles: valid only during PASS @ref ROCPROFILER_CALLBACK_PHASE_ENTER, sticky across passes
-    /// of this range, scoped to the range's replay loop, and unable to promote a context that is
-    /// globally inactive. @see rocprofiler-sdk/experimental/kernel_replay.h
     ///
     /// @var agent_id
     /// @brief [PASS, CLOSE] Agent the range was bound to, or a zero handle when no dispatch was
