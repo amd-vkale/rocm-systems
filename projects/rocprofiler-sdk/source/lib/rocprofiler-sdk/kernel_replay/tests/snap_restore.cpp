@@ -703,3 +703,79 @@ TEST(kernel_replay_snapshot, deferred_capture_failure_keeps_snapshot_unrestorabl
 
     ASSERT_EQ(hipFree(buffer), hipSuccess);
 }
+
+// GPU-local backing outlives a snapshot so the next replayed dispatch can reuse it, but only the
+// recent footprints: backing for a region the application freed is released once two snapshots in
+// a row did not need it.
+TEST(kernel_replay_snapshot, retained_backing_follows_recent_footprints)
+{
+    if(!ensure_live_tracking()) GTEST_SKIP() << "could not activate rocprofiler / no HIP GPU";
+
+    const auto agent = gpu_agent();
+    ASSERT_NE(agent.handle, 0U) << "no GPU agent found";
+    const auto pool = gpu_backing_pool(agent);
+    if(pool.handle == 0) GTEST_SKIP() << "no coarse-grained GPU pool for snapshot backing";
+
+    constexpr size_t bytes = 64u << 20;
+    float*           keep  = nullptr;
+    float*           gone  = nullptr;
+    ASSERT_EQ(hipMalloc(&keep, bytes), hipSuccess);
+    ASSERT_EQ(hipMalloc(&gone, bytes), hipSuccess);
+
+    {
+        auto snapshot = msnp::snap(agent, pool, msnp::capture_mode::deferred);
+        ASSERT_TRUE(snapshot.ok);
+    }
+    const auto both = msnp::retained_backing_bytes(pool);
+    EXPECT_GE(both, 2 * bytes) << "backing is kept for the next snapshot";
+
+    // The freed region's backing is kept through the next snapshot and released by the one after.
+    ASSERT_EQ(hipFree(gone), hipSuccess);
+    for(int i = 0; i < 2; ++i)
+    {
+        auto snapshot = msnp::snap(agent, pool, msnp::capture_mode::deferred);
+        ASSERT_TRUE(snapshot.ok);
+    }
+    EXPECT_LE(msnp::retained_backing_bytes(pool), both - bytes)
+        << "the freed region's backing must not stay idle once two snapshots did not need it";
+
+    ASSERT_EQ(hipFree(keep), hipSuccess);
+}
+
+// Idle snapshot backing must never be why an application allocation fails: when the allocation
+// needs that memory, the tracker releases the backing and retries.
+TEST(kernel_replay_snapshot, application_allocation_reclaims_idle_backing)
+{
+    if(!ensure_live_tracking()) GTEST_SKIP() << "could not activate rocprofiler / no HIP GPU";
+
+    const auto agent = gpu_agent();
+    ASSERT_NE(agent.handle, 0U) << "no GPU agent found";
+    const auto pool = gpu_backing_pool(agent);
+    if(pool.handle == 0) GTEST_SKIP() << "no coarse-grained GPU pool for snapshot backing";
+
+    size_t free_bytes = 0, total_bytes = 0;
+    ASSERT_EQ(hipMemGetInfo(&free_bytes, &total_bytes), hipSuccess);
+    if(free_bytes < (size_t{16} << 30)) GTEST_SKIP() << "needs at least 16 GiB of free VRAM";
+
+    // A region of 40% of free memory; its deferred snapshot allocates the same again as backing,
+    // which stays idle after the snapshot is destroyed.
+    const auto region_bytes = (free_bytes / 10 * 4) & ~size_t{0xFFFFF};
+    void*      region       = nullptr;
+    ASSERT_EQ(hipMalloc(&region, region_bytes), hipSuccess);
+    {
+        auto snapshot = msnp::snap(agent, pool, msnp::capture_mode::deferred);
+        ASSERT_TRUE(snapshot.ok);
+    }
+    ASSERT_GE(msnp::retained_backing_bytes(pool), region_bytes);
+
+    // Fits only if the idle backing is handed back.
+    ASSERT_EQ(hipMemGetInfo(&free_bytes, &total_bytes), hipSuccess);
+    const auto big_bytes = (free_bytes + region_bytes / 2) & ~size_t{0xFFFFF};
+    void*      big       = nullptr;
+    EXPECT_EQ(hipMalloc(&big, big_bytes), hipSuccess)
+        << "an allocation that needs the idle backing must get it";
+    EXPECT_EQ(msnp::retained_backing_bytes(pool), 0u);
+
+    if(big) EXPECT_EQ(hipFree(big), hipSuccess);
+    ASSERT_EQ(hipFree(region), hipSuccess);
+}

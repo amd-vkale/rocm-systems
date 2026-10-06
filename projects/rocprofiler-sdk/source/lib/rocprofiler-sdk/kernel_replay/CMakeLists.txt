@@ -2,6 +2,7 @@
 set(ROCPROFILER_LIB_KERNEL_REPLAY_HEADERS
     blit-copy-kernel.hpp
     blit-copy.hpp
+    device_backing_pool.hpp
     drain_backoff.hpp
     kernel_replay.hpp
     local_context.hpp
@@ -11,8 +12,15 @@ set(ROCPROFILER_LIB_KERNEL_REPLAY_HEADERS
     replay_callbacks.hpp
     utils.hpp)
 set(ROCPROFILER_LIB_KERNEL_REPLAY_SOURCES
-    blit-copy.cpp kernel_replay.cpp local_context.cpp memory_snapshot.cpp
-    memory_tracker.cpp module_variable_cache.cpp replay_callbacks.cpp utils.cpp)
+    blit-copy.cpp
+    device_backing_pool.cpp
+    kernel_replay.cpp
+    local_context.cpp
+    memory_snapshot.cpp
+    memory_tracker.cpp
+    module_variable_cache.cpp
+    replay_callbacks.cpp
+    utils.cpp)
 
 target_sources(
     rocprofiler-sdk-object-library PRIVATE ${ROCPROFILER_LIB_KERNEL_REPLAY_SOURCES}

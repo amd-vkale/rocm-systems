@@ -57,7 +57,8 @@ struct mem_block_t
     void*                 gpu_addr    = nullptr;  // live application allocation base pointer
     void*                 device_copy = nullptr;  // GPU-local snapshot backing when available
     hsa_amd_memory_pool_t device_pool{.handle = 0};
-    size_t                copy_size = 0;
+    size_t                device_capacity = 0;  // bytes behind device_copy, >= copy_size
+    size_t                copy_size       = 0;
     std::vector<char>     host_copy;  // fallback backing when GPU-local allocation fails
     // true  = from the allocation tracker; re-check liveness before restoring (it can be freed).
     // false = module-scope variable in a loaded executable; always live, so restore
@@ -126,6 +127,10 @@ capture(device_snapshot_t& snapshot, const batch_copy_fn_t& submit);
 // Synchronous copy of each region, for a batch the blit could not take.
 hsa_status_t
 copy_regions(const std::vector<blit::copy_region_t>& regions);
+
+// GPU-local backing kept idle for reuse by the next snapshot from `pool`, for tests.
+size_t
+retained_backing_bytes(hsa_amd_memory_pool_t pool);
 
 // Copy each saved region back to its live device allocation. A region freed after snap is skipped.
 // A failed copy returns false immediately because the snapshot is then only partially applied.

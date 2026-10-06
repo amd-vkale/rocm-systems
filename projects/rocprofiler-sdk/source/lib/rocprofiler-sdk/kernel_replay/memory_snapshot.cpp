@@ -23,10 +23,12 @@
 #include "lib/rocprofiler-sdk/kernel_replay/memory_snapshot.hpp"
 
 #include "lib/common/logging.hpp"
+#include "lib/common/scope_destructor.hpp"
 #include "lib/common/synchronized.hpp"
 #include "lib/rocprofiler-sdk/code_object/code_object.hpp"
 #include "lib/rocprofiler-sdk/code_object/hsa/code_object.hpp"
 #include "lib/rocprofiler-sdk/hsa/hsa.hpp"
+#include "lib/rocprofiler-sdk/kernel_replay/device_backing_pool.hpp"
 #include "lib/rocprofiler-sdk/kernel_replay/memory_tracker.hpp"
 #include "lib/rocprofiler-sdk/kernel_replay/module_variable_cache.hpp"
 
@@ -207,68 +209,82 @@ cached_module_variables(hsa_agent_t agent)
         agent.handle, generation, [agent]() { return discover_module_variables(agent); });
 }
 
-using device_backing_cache_t =
-    std::unordered_map<uint64_t, std::unordered_map<size_t, std::vector<void*>>>;
+size_t
+release_idle_backing();
 
-common::Synchronized<device_backing_cache_t>&
-device_backing_cache()
+device_backing_pool&
+backing_pool()
 {
-    // Keep backing allocations for process lifetime. HSA may already be unavailable during static
-    // destruction, so do not attempt to free them there.
-    static auto* value = new common::Synchronized<device_backing_cache_t>{};
+    // Leaked: a snapshot can be destroyed during static destruction, when HSA may already be gone,
+    // so idle backing is left for process teardown instead of being freed here.
+    static auto* value = [] {
+        auto* pool = new device_backing_pool{
+            [](uint64_t pool_handle, uint64_t agent_handle, size_t bytes) -> void* {
+                auto* ext = hsa::get_amd_ext_table();
+                if(!ext || !ext->hsa_amd_memory_pool_allocate_fn ||
+                   !ext->hsa_amd_agents_allow_access_fn || !ext->hsa_amd_memory_pool_free_fn)
+                    return nullptr;
+
+                void* ptr = nullptr;
+                if(ext->hsa_amd_memory_pool_allocate_fn(
+                       hsa_amd_memory_pool_t{.handle = pool_handle}, bytes, 0, &ptr) !=
+                       HSA_STATUS_SUCCESS ||
+                   !ptr)
+                    return nullptr;
+
+                const auto agent = hsa_agent_t{.handle = agent_handle};
+                if(ext->hsa_amd_agents_allow_access_fn(1, &agent, nullptr, ptr) ==
+                   HSA_STATUS_SUCCESS)
+                    return ptr;
+                ext->hsa_amd_memory_pool_free_fn(ptr);
+                return nullptr;
+            },
+            [](void* ptr) {
+                auto* ext = hsa::get_amd_ext_table();
+                if(ext && ext->hsa_amd_memory_pool_free_fn) ext->hsa_amd_memory_pool_free_fn(ptr);
+            }};
+        memory_tracker::set_out_of_memory_hook(&release_idle_backing);
+        return pool;
+    }();
     return *value;
 }
 
-void
-release_device_copy(hsa_amd_memory_pool_t pool, size_t size, void* ptr)
+size_t
+release_idle_backing()
 {
-    if(pool.handle == 0 || size == 0 || !ptr) return;
-    device_backing_cache().wlock([&](auto& cache) { cache[pool.handle][size].emplace_back(ptr); });
+    const auto freed = backing_pool().release_idle();
+    if(freed > 0)
+        ROCP_INFO << fmt::format("kernel-replay snapshot: released {} bytes of idle snapshot "
+                                 "backing so an application allocation can retry",
+                                 freed);
+    return freed;
 }
 
 bool
-allocate_device_copy(hsa_amd_memory_pool_t pool, hsa_agent_t agent, size_t size, void** ptr)
+allocate_device_copy(hsa_amd_memory_pool_t pool, hsa_agent_t agent, size_t size, mem_block_t& blk)
 {
-    if(pool.handle == 0 || !ptr) return false;
-
-    *ptr = nullptr;
-    device_backing_cache().wlock([&](auto& cache) {
-        auto pool_itr = cache.find(pool.handle);
-        if(pool_itr == cache.end()) return;
-        auto size_itr = pool_itr->second.find(size);
-        if(size_itr == pool_itr->second.end() || size_itr->second.empty()) return;
-        *ptr = size_itr->second.back();
-        size_itr->second.pop_back();
-    });
-    if(*ptr) return true;
-
-    auto* ext = hsa::get_amd_ext_table();
-    if(!ext || !ext->hsa_amd_memory_pool_allocate_fn || !ext->hsa_amd_agents_allow_access_fn ||
-       !ext->hsa_amd_memory_pool_free_fn)
-        return false;
-
-    auto status = ext->hsa_amd_memory_pool_allocate_fn(pool, size, 0, ptr);
-    if(status != HSA_STATUS_SUCCESS || !*ptr) return false;
-
-    status = ext->hsa_amd_agents_allow_access_fn(1, &agent, nullptr, *ptr);
-    if(status == HSA_STATUS_SUCCESS) return true;
-
-    ext->hsa_amd_memory_pool_free_fn(*ptr);
-    *ptr = nullptr;
-    return false;
+    if(pool.handle == 0) return false;
+    auto block = backing_pool().acquire(pool.handle, agent.handle, size);
+    if(!block) return false;
+    blk.device_copy     = block->ptr;
+    blk.device_capacity = block->capacity;
+    blk.device_pool     = pool;
+    return true;
 }
 }  // namespace
 
 mem_block_t::~mem_block_t()
 {
     if(!device_copy) return;
-    release_device_copy(device_pool, copy_size, device_copy);
+    backing_pool().release(device_pool.handle,
+                           device_backing_pool::block_t{device_copy, device_capacity});
 }
 
 mem_block_t::mem_block_t(mem_block_t&& rhs) noexcept
 : gpu_addr{std::exchange(rhs.gpu_addr, nullptr)}
 , device_copy{std::exchange(rhs.device_copy, nullptr)}
 , device_pool{std::exchange(rhs.device_pool, hsa_amd_memory_pool_t{.handle = 0})}
+, device_capacity{std::exchange(rhs.device_capacity, 0)}
 , copy_size{std::exchange(rhs.copy_size, 0)}
 , host_copy{std::move(rhs.host_copy)}
 , from_tracker{std::exchange(rhs.from_tracker, false)}
@@ -294,6 +310,14 @@ device_snapshot_t
 snap(hsa_agent_t agent, hsa_amd_memory_pool_t gpu_pool, capture_mode mode)
 {
     device_snapshot_t out{};
+
+    // Idle backing that neither this snapshot nor the previous one reused is freed when this one
+    // returns, successful or not, so the pool holds the recent footprints, not every size seen.
+    const auto trim_token =
+        (gpu_pool.handle != 0) ? backing_pool().begin_snapshot(gpu_pool.handle) : uint64_t{0};
+    auto trim = common::scope_destructor{[&]() {
+        if(gpu_pool.handle != 0) backing_pool().end_snapshot(gpu_pool.handle, trim_token);
+    }};
 
     // Note: trackable allocations carrying HSA_AMD_MEMORY_POOL_EXECUTABLE_FLAG are recorded in
     // memory_tracker::unsupported_executable() and omitted from the main inventory. Declining
@@ -354,9 +378,8 @@ snap(hsa_agent_t agent, hsa_amd_memory_pool_t gpu_pool, capture_mode mode)
         blk.copy_size    = size;
         blk.from_tracker = from_tracker;
 
-        if(allocate_device_copy(gpu_pool, agent, size, &blk.device_copy))
+        if(allocate_device_copy(gpu_pool, agent, size, blk))
         {
-            blk.device_pool = gpu_pool;
             ++device_backed;
         }
         else
@@ -458,6 +481,12 @@ has_pending_capture(const device_snapshot_t& snapshot)
     return std::any_of(snapshot.blocks.begin(), snapshot.blocks.end(), [](const auto& blk) {
         return !blk.captured;
     });
+}
+
+size_t
+retained_backing_bytes(hsa_amd_memory_pool_t pool)
+{
+    return backing_pool().idle_bytes(pool.handle);
 }
 
 hsa_status_t

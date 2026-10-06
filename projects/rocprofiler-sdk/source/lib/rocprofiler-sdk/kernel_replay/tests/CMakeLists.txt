@@ -233,3 +233,19 @@ rocprofiler_add_unit_test(
     ENVIRONMENT
         "LD_LIBRARY_PATH=${PROJECT_BINARY_DIR}/${CMAKE_INSTALL_LIBDIR}:${CMAKE_LIBRARY_OUTPUT_DIRECTORY}:${CMAKE_INSTALL_PREFIX}/lib:${ROCM_PATH}/lib:$ENV{LD_LIBRARY_PATH}"
     FAIL_REGULAR_EXPRESSION "${ROCPROFILER_DEFAULT_FAIL_REGEX}")
+
+# GPU-local snapshot backing pool (no GPU / HSA)
+add_executable(kernel-replay-device-backing-pool-test)
+target_sources(kernel-replay-device-backing-pool-test PRIVATE device_backing_pool.cpp)
+
+target_link_libraries(
+    kernel-replay-device-backing-pool-test
+    PRIVATE rocprofiler-sdk::rocprofiler-sdk-common-library
+            rocprofiler-sdk::rocprofiler-sdk-static-library GTest::gtest
+            GTest::gtest_main)
+
+rocprofiler_add_unit_test(
+    TARGET kernel-replay-device-backing-pool-test
+    SOURCES device_backing_pool.cpp
+    TIMEOUT 60
+    FAIL_REGULAR_EXPRESSION "${ROCPROFILER_DEFAULT_FAIL_REGEX}")

@@ -89,6 +89,13 @@ decltype(CoreApiTable{}.hsa_memory_free_fn)             next_memory_free     = n
 // HSA_AMD_MEMORY_POOL_EXECUTABLE_FLAG is absent from older HSA headers
 constexpr uint32_t memory_pool_executable_flag = (1U << 2);
 
+std::atomic<out_of_memory_hook_t>&
+out_of_memory_hook()
+{
+    static auto value = std::atomic<out_of_memory_hook_t>{nullptr};
+    return value;
+}
+
 void
 record_unsupported_executable(void* ptr, size_t size)
 {
@@ -155,6 +162,13 @@ hsa_status_t
 pool_allocate_wrapper(hsa_amd_memory_pool_t pool, size_t size, uint32_t flags, void** ptr)
 {
     auto st = next_pool_allocate(pool, size, flags, ptr);
+    // Snapshot backing kept between replayed dispatches must never be the reason an application
+    // allocation fails: hand the idle backing back and retry once.
+    if(st == HSA_STATUS_ERROR_OUT_OF_RESOURCES)
+    {
+        if(auto hook = out_of_memory_hook().load(std::memory_order_acquire); hook && hook() > 0)
+            st = next_pool_allocate(pool, size, flags, ptr);
+    }
     // Never snapshot executable allocations into the main inventory. HIP places its
     // per-stream/per-graph kernarg pools -- and rocprofiler its trace buffers -- in the
     // coarse-grained segment with the executable flag, so they slip past query_alloc's
@@ -305,6 +319,12 @@ tracking_pool_free(void* ptr)
 {
     if(!next_pool_free) return HSA_STATUS_ERROR;
     return pool_free_wrapper(ptr);
+}
+
+void
+set_out_of_memory_hook(out_of_memory_hook_t hook)
+{
+    out_of_memory_hook().store(hook, std::memory_order_release);
 }
 
 }  // namespace memory_tracker
