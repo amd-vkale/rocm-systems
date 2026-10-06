@@ -29,9 +29,13 @@
 #include "lib/rocprofiler-sdk/hsa/queue.hpp"
 #include "lib/rocprofiler-sdk/hsa/replay_window.hpp"
 #include "lib/rocprofiler-sdk/hsa/rocprofiler_packet.hpp"
+#include "lib/rocprofiler-sdk/kernel_replay/blit-copy.hpp"
 #include "lib/rocprofiler-sdk/kernel_replay/local_context.hpp"
 #include "lib/rocprofiler-sdk/kernel_replay/memory_snapshot.hpp"
 #include "lib/rocprofiler-sdk/kernel_replay/memory_tracker.hpp"
+#include "lib/rocprofiler-sdk/pc_sampling/defines.hpp"
+#include "lib/rocprofiler-sdk/pc_sampling/hsa_adapter.hpp"
+#include "lib/rocprofiler-sdk/pc_sampling/service.hpp"
 #include "lib/rocprofiler-sdk/range_replay/digest.hpp"
 #include "lib/rocprofiler-sdk/range_replay/replay_callbacks.hpp"
 #include "lib/rocprofiler-sdk/range_replay/retained_kernarg.hpp"
@@ -75,6 +79,64 @@ ring_writer(const void* packets, uint64_t count)
 
     hsa::replay_ring_submit(
         *tl_submit_queue, static_cast<const hsa::rocprofiler_packet*>(packets), count);
+}
+
+// Queues one blit for `regions` through `writer` and adds it to `pending`. Returns an error, with
+// nothing queued, when the blit cannot be created.
+hsa_status_t
+queue_blit(const hsa::Queue&                                      queue,
+           hsa_amd_queue_intercept_packet_writer                  writer,
+           const std::vector<kernel_replay::blit::copy_region_t>& regions,
+           std::vector<kernel_replay::blit::packet_info>&         pending)
+{
+    if(regions.empty()) return HSA_STATUS_SUCCESS;
+    if(kernel_replay::blit::prepare(queue) != HSA_STATUS_SUCCESS) return HSA_STATUS_ERROR;
+#if ROCPROFILER_SDK_HSA_PC_SAMPLING > 0
+    // The blit runs on the application's queue; on a PC-sampled agent its samples would be
+    // attributed to whichever dispatch last used the ring slot.
+    if(pc_sampling::is_pc_sample_service_configured(queue.get_agent().get_rocp_agent()->id))
+    {
+        const auto marker = pc_sampling::hsa::generate_suppressed_marker_packet();
+        writer(&marker, 1);
+    }
+#endif
+    return kernel_replay::blit::copy(queue, writer, regions, pending);
+}
+
+// Copies `regions` with one blit and waits for it, instead of one synchronous copy per region;
+// those copies remain the fallback when the blit cannot be created.
+hsa_status_t
+copy_with_blit(const hsa::Queue&                                      queue,
+               hsa_amd_queue_intercept_packet_writer                  writer,
+               const std::vector<kernel_replay::blit::copy_region_t>& regions)
+{
+    auto pending = std::vector<kernel_replay::blit::packet_info>{};
+    if(queue_blit(queue, writer, regions, pending) != HSA_STATUS_SUCCESS)
+        return kernel_replay::memory_snapshot::copy_regions(regions);
+    for(auto& packet : pending)
+    {
+        const auto status = packet.wait();
+        if(status != HSA_STATUS_SUCCESS) return status;
+    }
+    return HSA_STATUS_SUCCESS;
+}
+
+// A deferred snapshot of `agent`: GPU-local backing where the agent's pool has room (host memory
+// otherwise), with the GPU-local part captured by one blit.
+snapshot_t
+snap_with_blit(hsa_agent_t                           agent,
+               const hsa::Queue&                     queue,
+               hsa_amd_queue_intercept_packet_writer writer)
+{
+    auto snapshot = kernel_replay::memory_snapshot::snap(
+        agent,
+        queue.get_agent().gpu_pool(),
+        kernel_replay::memory_snapshot::capture_mode::deferred);
+    if(!snapshot.ok) return snapshot;
+    if(!kernel_replay::memory_snapshot::capture(
+           snapshot, [&](const auto& regions) { return copy_with_blit(queue, writer, regions); }))
+        snapshot.ok = false;
+    return snapshot;
 }
 
 std::vector<void*>
@@ -198,7 +260,7 @@ snapshot_bytes(const snapshot_t& snapshot)
 {
     auto total = size_t{0};
     for(const auto& block : snapshot.blocks)
-        total += block.host_copy.size();
+        total += block.copy_size;
     return total;
 }
 }  // namespace
@@ -233,14 +295,27 @@ build_pass_packets(const std::vector<recorded_dispatch_t>& dispatches)
     return packets;
 }
 
+// A GPU-local block is read back to the host to be hashed; only the optional divergence check
+// hashes, so the extra copy is paid only when it is enabled.
+uint64_t
+block_digest(const kernel_replay::memory_snapshot::mem_block_t& block)
+{
+    if(!block.device_copy) return digest::hash_bytes(block.saved_data(), block.copy_size);
+
+    auto host = std::vector<char>(block.copy_size);
+    if(kernel_replay::memory_snapshot::copy_regions({kernel_replay::blit::copy_region_t{
+           host.data(), block.device_copy, block.copy_size}}) != HSA_STATUS_SUCCESS)
+        return 0;
+    return digest::hash_bytes(host.data(), host.size());
+}
+
 digest::region_digests_t
 snapshot_digests(const snapshot_t& snapshot)
 {
     auto keyed = std::vector<std::pair<const void*, uint64_t>>{};
     keyed.reserve(snapshot.blocks.size());
     for(const auto& block : snapshot.blocks)
-        keyed.emplace_back(block.gpu_addr,
-                           digest::hash_bytes(block.host_copy.data(), block.host_copy.size()));
+        keyed.emplace_back(block.gpu_addr, block_digest(block));
 
     std::sort(keyed.begin(), keyed.end(), [](const auto& lhs, const auto& rhs) {
         return lhs.first < rhs.first;
@@ -310,7 +385,7 @@ ensure_entry_snapshot(range_context_t&                      ctx,
     hsa::replay_drain_agent_or_fatal(ctx.hsa_agent);
     const auto drained_at = phase_clock::now();
 
-    ctx.snapshot          = kernel_replay::memory_snapshot::snap(ctx.hsa_agent);
+    ctx.snapshot          = snap_with_blit(ctx.hsa_agent, queue, writer);
     ctx.snapshot_taken    = true;
     const auto snapped_at = phase_clock::now();
 
@@ -367,9 +442,19 @@ execute_range(range_context_t& ctx, uint64_t& divergence_count)
     if(tracked_pointers(ctx.hsa_agent) != ctx.snapshot_ptrs)
         return ROCPROFILER_RANGE_REPLAY_STATUS_ALLOCATION_CHANGED_IN_RANGE;
 
+    // Mark the thread as replaying for the duration: the queue path uses it to skip re-recording
+    // the packets we submit and to skip the per-agent reader lock we already hold as a writer. The
+    // ring writer below also carries the blits that capture and restore the snapshots.
+    set_this_thread_replaying(true);
+    tl_submit_queue     = &queue;
+    const auto _restore = common::scope_destructor{[]() {
+        set_this_thread_replaying(false);
+        tl_submit_queue = nullptr;
+    }};
+
     // The state the application must resume with, captured before the first pass overwrites it.
     const auto snap_start    = phase_clock::now();
-    const auto exit_snapshot = kernel_replay::memory_snapshot::snap(ctx.hsa_agent);
+    const auto exit_snapshot = snap_with_blit(ctx.hsa_agent, queue, ring_writer);
     const auto snapped_at    = phase_clock::now();
     if(!exit_snapshot.ok) return ROCPROFILER_RANGE_REPLAY_STATUS_SNAPSHOT_FAILED;
 
@@ -386,15 +471,6 @@ execute_range(range_context_t& ctx, uint64_t& divergence_count)
     auto local_ctx_tls_guard =
         kernel_replay::scoped_local_context_control{context::get_active_contexts()};
 
-    // Mark the thread as replaying for the duration: the queue path uses it to skip re-recording
-    // the packets we submit and to skip the per-agent reader lock we already hold as a writer.
-    set_this_thread_replaying(true);
-    tl_submit_queue     = &queue;
-    const auto _restore = common::scope_destructor{[]() {
-        set_this_thread_replaying(false);
-        tl_submit_queue = nullptr;
-    }};
-
     const auto agent_id       = ctx.agent_id;
     const auto dispatch_count = static_cast<uint64_t>(ctx.record.dispatch_count());
 
@@ -408,16 +484,7 @@ execute_range(range_context_t& ctx, uint64_t& divergence_count)
     {
         const bool is_final = !ctx.plan.indefinite && (pass == ctx.plan.total_passes - 1);
 
-        // Rewind to the state the range started from. A failed restore leaves device memory
-        // partially written; continuing would submit a pass over corrupted data and hand that
-        // corruption back to the application.
-        const auto restore_start = phase_clock::now();
-        ROCP_FATAL_IF(!kernel_replay::memory_snapshot::restore(ctx.snapshot)) << fmt::format(
-            "range replay: restore of the range-entry snapshot failed (partial host->device copy); "
-            "aborting rather than continuing with corrupted device memory");
         const auto pass_start = phase_clock::now();
-        restores_time += pass_start - restore_start;
-        ++restores_run;
 
         auto pass_state = pass_context_state_t{};
         execute_pass_phase_enter(ctx.plan,
@@ -430,12 +497,37 @@ execute_range(range_context_t& ctx, uint64_t& divergence_count)
                                  pass_state);
 
         staging.fill(ctx.record.dispatches(), packets);
-        queue.invoke_write_interceptor(packets.data(), packets.size(), ring_writer);
 
-        // Drain this pass's async completion handlers (a separate HSA thread reads counters, emits
-        // records, and releases signals) before the continue-decision, the next restore, and the
-        // next submit.
-        hsa::replay_drain_or_fatal(queue);
+        // Rewind to the state the range started from with one blit queued directly ahead of the
+        // pass's packets, as kernel replay does between its passes. restore() runs this under the
+        // allocation inventory's read lock, so the lock is held until the pass has drained.
+        auto       restore_packets = std::vector<kernel_replay::blit::packet_info>{};
+        const auto restore_start   = phase_clock::now();
+        const auto run_pass        = [&](const auto& regions) -> hsa_status_t {
+            if(queue_blit(queue, ring_writer, regions, restore_packets) != HSA_STATUS_SUCCESS)
+            {
+                auto status = kernel_replay::memory_snapshot::copy_regions(regions);
+                if(status != HSA_STATUS_SUCCESS) return status;
+            }
+            restores_time += phase_clock::now() - restore_start;
+
+            queue.invoke_write_interceptor(packets.data(), packets.size(), ring_writer);
+
+            // Drain this pass's async completion handlers (a separate HSA thread reads counters,
+            // emits records, and releases signals) before the continue-decision, the next
+            // restore, and the next submit. The pass ran behind the restore blit's barrier, so its
+            // completion also proves the blit's.
+            hsa::replay_drain_or_fatal(queue);
+            for(auto& restore : restore_packets)
+                if(restore.retire() != HSA_STATUS_SUCCESS) return HSA_STATUS_ERROR;
+            return HSA_STATUS_SUCCESS;
+        };
+        // A failed restore leaves device memory partially written; continuing would submit a pass
+        // over corrupted data and hand that corruption back to the application.
+        ROCP_FATAL_IF(!kernel_replay::memory_snapshot::restore(ctx.snapshot, run_pass))
+            << fmt::format("range replay: restore of the range-entry snapshot failed; aborting "
+                           "rather than continuing with corrupted device memory");
+        ++restores_run;
 
         execute_pass_phase_exit(ctx.plan, pass, agent_id, dispatch_count, pass_state);
         passes_time += phase_clock::now() - pass_start;
@@ -456,9 +548,12 @@ execute_range(range_context_t& ctx, uint64_t& divergence_count)
 
     // Hand the application back the state its own execution produced, whether or not the replay
     // reproduced it.
-    ROCP_FATAL_IF(!kernel_replay::memory_snapshot::restore(exit_snapshot)) << fmt::format(
-        "range replay: restore of the range-exit snapshot failed (partial host->device copy); "
-        "aborting rather than returning corrupted device memory to the application");
+    ROCP_FATAL_IF(!kernel_replay::memory_snapshot::restore(
+        exit_snapshot,
+        [&](const auto& regions) { return copy_with_blit(queue, ring_writer, regions); }))
+        << fmt::format("range replay: restore of the range-exit snapshot failed (partial "
+                       "host->device copy); "
+                       "aborting rather than returning corrupted device memory to the application");
     const auto window_end = phase_clock::now();
 
     ROCP_INFO << fmt::format(

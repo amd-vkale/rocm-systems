@@ -128,18 +128,22 @@ duration:
 take per-agent WRITER lock
   drain this queue's async handlers, then every queue on the agent
   verify the tracked allocation set still matches the entry snapshot's
+  mark this thread replaying
   snap()  -> the EXIT snapshot: the state the application must resume with
+             (GPU-local backing, captured by one blit and waited for)
   reserve the kernarg staging block (the agent's retained block when it fits)
-  install the localized-context-control guard; mark this thread replaying
+  install the localized-context-control guard
   for pass = 1 ..:
-      restore(entry snapshot)
       PASS PHASE_ENTER
-      fill staging, submit the recorded packets (serialized)
+      fill staging
+      restore(entry snapshot): one blit queued directly ahead of the pass, under the
+          allocation inventory's read lock until the pass drains
+      submit the recorded packets (serialized)
       drain this pass's async completion handlers
       PASS PHASE_EXIT
       ask the tool whether to continue; break if not
   optionally: snap() and compare digests against the exit snapshot
-  restore(exit snapshot)
+  restore(exit snapshot), one blit, waited for
   retain the kernarg staging block for the agent's next range
 release per-agent WRITER lock
 ```

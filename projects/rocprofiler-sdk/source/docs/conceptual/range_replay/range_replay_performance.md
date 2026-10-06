@@ -39,12 +39,21 @@ Two differences from kernel replay matter when changing the shared snapshot code
 
 - Range replay holds two snapshots of the agent at once: the entry snapshot for the whole range,
   and the exit snapshot from the close until the exit restore, plus a third while the divergence
-  check runs. Host staging recycled from one snapshot to the next of the same agent serves the
-  entry snapshot. It serves the exit snapshot only if the staging the previous range released is
-  still held when the exit snapshot is taken, which a policy that frees every buffer a snapshot did
-  not take, as soon as that snapshot finishes, does not do.
-- The divergence check hashes the snapshots' host copies. A snapshot backed by device memory would
-  have to be read back, or hashed on the device, before the check could compare it.
+  check runs. The GPU-local snapshot backing is kept for the two most recent snapshots of a pool
+  (`device_backing_pool`): the next range's entry snapshot reuses one set and its exit snapshot the
+  other, so a steady loop of ranges allocates its backing once. A policy that freed every block a
+  snapshot did not take, as soon as that snapshot finished, would make every exit snapshot allocate
+  again.
+- The divergence check hashes the snapshots' contents. A GPU-local block is read back to the host
+  first, so the check costs one device-to-host copy of the footprint per range while it is on, and
+  nothing when it is off.
+
+With the device-side snapshot, range replay takes its entry and exit snapshots in GPU memory where
+it fits, each captured by one blit, and restores before every pass with one blit queued directly
+ahead of that pass's packets, as kernel replay does between its passes. A footprint that does not
+fit falls back to host memory region by region. The tool's `PASS` `PHASE_ENTER` callback now runs
+before the pass's restore rather than after it; nothing a tool can observe from the callback
+depends on that order.
 
 ### The kernarg block is kept between ranges
 

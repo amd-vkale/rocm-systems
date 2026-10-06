@@ -109,8 +109,9 @@ make_snapshot(const std::vector<std::pair<void*, std::string>>& regions)
     auto snapshot = snapshot_t{};
     for(const auto& [addr, contents] : regions)
     {
-        auto block     = rocprofiler::kernel_replay::memory_snapshot::mem_block_t{};
-        block.gpu_addr = addr;
+        auto block      = rocprofiler::kernel_replay::memory_snapshot::mem_block_t{};
+        block.gpu_addr  = addr;
+        block.copy_size = contents.size();
         fill_host_copy(block.host_copy, contents);
         snapshot.blocks.emplace_back(std::move(block));
     }

@@ -795,15 +795,16 @@ WriteInterceptor(const void* packets,
 #if ROCPROFILER_SDK_HSA_PC_SAMPLING > 0
             if(pc_sampling::is_pc_sample_service_configured(queue.get_agent().get_rocp_agent()->id))
             {
-                // A kernel replay pass that has locally stopped PC sampling still runs on a
-                // sampled agent; its samples are dropped so each dispatch is sampled once, on the
-                // pass the tool chose.
+                // A kernel or range replay pass that has locally stopped PC sampling still runs on
+                // a sampled agent; its samples are dropped so each dispatch is sampled once, on the
+                // pass the tool chose. Range replay submits its passes through this same path
+                // without is_replay_pass, so the override itself is what is checked.
                 transformed_packets.emplace_back(
                     pc_sampling::hsa::generate_marker_packet_for_kernel(
                         corr_id,
                         _packet_data.tracing_data.external_correlation_ids,
                         dispatch_id,
-                        is_replay_pass && pc_sampling::hsa::pc_sampling_locally_stopped()));
+                        pc_sampling::hsa::pc_sampling_locally_stopped()));
             }
 #endif
 
