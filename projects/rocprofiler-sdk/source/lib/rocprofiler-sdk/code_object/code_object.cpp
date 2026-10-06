@@ -418,6 +418,15 @@ get_code_objects()
     return _v;
 }
 
+// Bumped under the get_code_objects() write lock after every change to that list, so a reader that
+// samples it before iterating can tell whether the list changed since.
+auto&
+get_loaded_generation()
+{
+    static auto _v = std::atomic<uint64_t>{0};
+    return _v;
+}
+
 auto*
 get_kernel_object_map()
 {
@@ -978,6 +987,7 @@ executable_freeze_internal(hsa_executable_t executable)
     CHECK_NOTNULL(code_obj_vec)->wlock([executable](code_object_array_t& _vec) {
         get_loader_table().hsa_ven_amd_loader_executable_iterate_loaded_code_objects(
             executable, code_object_load_callback, &_vec);
+        get_loaded_generation().fetch_add(1, std::memory_order_acq_rel);
     });
 
     constexpr auto CODE_OBJECT_KIND = ROCPROFILER_CALLBACK_TRACING_CODE_OBJECT;
@@ -1174,6 +1184,7 @@ executable_destroy_internal(hsa_executable_t executable)
             data.erase(std::remove_if(
                            data.begin(), data.end(), [](auto& itr) { return (itr == nullptr); }),
                        data.end());
+            get_loaded_generation().fetch_add(1, std::memory_order_acq_rel);
         });
     }
 
@@ -1452,7 +1463,10 @@ finalize()
             shutdown(itr);
     });
 
-    CHECK_NOTNULL(get_code_objects())->wlock([](code_object_array_t& data) { data.clear(); });
+    CHECK_NOTNULL(get_code_objects())->wlock([](code_object_array_t& data) {
+        data.clear();
+        get_loaded_generation().fetch_add(1, std::memory_order_acq_rel);
+    });
 
     is_shutdown.store(true, std::memory_order_release);
 }
@@ -1471,6 +1485,12 @@ iterate_loaded_code_objects(code_object_iterator_t&& func)
                 }
             },
             std::move(func));
+}
+
+uint64_t
+loaded_code_objects_generation()
+{
+    return get_loaded_generation().load(std::memory_order_acquire);
 }
 
 void

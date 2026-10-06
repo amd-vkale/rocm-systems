@@ -28,6 +28,7 @@
 #include "lib/rocprofiler-sdk/code_object/hsa/code_object.hpp"
 #include "lib/rocprofiler-sdk/hsa/hsa.hpp"
 #include "lib/rocprofiler-sdk/kernel_replay/memory_tracker.hpp"
+#include "lib/rocprofiler-sdk/kernel_replay/module_variable_cache.hpp"
 
 #include <fmt/format.h>
 #include <hsa/hsa.h>
@@ -72,27 +73,10 @@ with_inventory_check(void* gpu_addr, size_t size, CopyFn&& copy)
         });
 }
 
-// A module-scope variable (__device__ / __constant__ global) discovered in a loaded executable.
-struct module_variable_t
-{
-    void*  gpu_addr = nullptr;
-    size_t size     = 0;
-};
-
 // Upper bound on a single module-scope variable the snapshot will capture. This guards against a
 // mis-reported HSA symbol size turning into a huge host allocation; it is not a supported limit,
 // and exceeding it is reported rather than ignored (see collect_module_variable).
 constexpr uint64_t module_variable_size_cap = 1ULL << 30;  // 1 GiB
-
-// Result of enumerating module-scope variables. `incomplete` means HSA could not be asked about at
-// least one executable or symbol, so the set below may be missing a writable __device__ global.
-// Treated as a failed snapshot rather than a partial one: a variable we never captured is a
-// variable we never restore, and passes 2..N would silently read state accumulated by pass 1.
-struct module_variable_scan_t
-{
-    std::vector<module_variable_t> found{};
-    bool                           incomplete = false;
-};
 
 // hsa_executable_iterate_agent_symbols callback: collect HSA_SYMBOL_KIND_VARIABLE symbols
 // (device address + size) into the scan passed via `data`. The HSA callback cannot capture, so
@@ -201,6 +185,26 @@ discover_module_variables(hsa_agent_t agent)
     return scan;
 }
 
+module_variable_cache&
+get_module_variable_cache()
+{
+    // Leaked: snap() can run from a replay window that outlives static destruction.
+    static auto* value = new module_variable_cache{};
+    return *value;
+}
+
+// Every replayed dispatch snapshots, and a full scan walks every symbol of every loaded executable
+// (thousands of HSA queries for a library like rocBLAS), so reuse the last scan until the set of
+// loaded code objects changes. The generation is sampled before the scan, so a load or unload that
+// races the scan makes the next snap() rescan.
+module_variable_cache::scan_ptr_t
+cached_module_variables(hsa_agent_t agent)
+{
+    const auto generation = code_object::loaded_code_objects_generation();
+    return get_module_variable_cache().get(
+        agent.handle, generation, [agent]() { return discover_module_variables(agent); });
+}
+
 using device_backing_cache_t =
     std::unordered_map<uint64_t, std::unordered_map<size_t, std::vector<void*>>>;
 
@@ -300,13 +304,13 @@ snap(hsa_agent_t agent, hsa_amd_memory_pool_t gpu_pool)
     // replay and runs the dispatch once. Aborting here instead would kill the application over an
     // opt-in beta feature, and a large allocation inventory is exactly when it would happen.
     auto inventory = memory_tracker::alloc_map_t{};
-    auto scan      = module_variable_scan_t{};
+    auto scan_ptr  = module_variable_cache::scan_ptr_t{};
     try
     {
         inventory = memory_tracker::snap_inventory(agent);
-        scan      = discover_module_variables(agent);
+        scan_ptr  = cached_module_variables(agent);
 
-        out.blocks.reserve(inventory.size() + scan.found.size());
+        out.blocks.reserve(inventory.size() + scan_ptr->found.size());
     } catch(const std::bad_alloc&)
     {
         LOG_FIRST_N(WARNING, 1) << "kernel-replay snapshot: out of memory reserving metadata; "
@@ -314,6 +318,7 @@ snap(hsa_agent_t agent, hsa_amd_memory_pool_t gpu_pool)
         out.ok = false;
         return out;
     }
+    const auto& scan = *scan_ptr;
 
     // An executable or symbol HSA would not tell us about may hold a writable __device__ global. We
     // cannot restore what we did not capture, so the passes would not see identical inputs.

@@ -98,6 +98,16 @@ others yield no symbols — which matches `snap()`'s per-agent contract.
 This discovery must run at snapshot time rather than at executable-load time, because constant memory
 is not necessarily populated when the executable loads.
 
+The walk itself is cached. A variable's address and size are fixed once its executable is frozen,
+so the list of variables only changes when a code object is loaded or unloaded. The code object
+module bumps a generation counter whenever its list of loaded code objects changes
+(`code_object::loaded_code_objects_generation()`), and `snap()` reuses the previous walk for the
+agent while that generation is unchanged. The *contents* are still copied at every snapshot, so
+constant memory written after load is captured as before. Without the cache, every replayed
+dispatch repeats one `hsa_executable_symbol_get_info` round per symbol of every loaded executable,
+which for libraries that ship thousands of kernels per code object is a fixed cost per dispatch.
+A walk that HSA could not complete is never cached, so the next snapshot retries it.
+
 ## Failure handling: an incomplete snapshot declines replay
 
 Capture of a single region fails if the host allocation fails under memory pressure (a `std::bad_alloc`
@@ -182,6 +192,8 @@ All paths are relative to `projects/rocprofiler-sdk/`.
 |---|---|---|
 | Snapshot capture | `source/lib/rocprofiler-sdk/kernel_replay/memory_snapshot.cpp` | `snap()` |
 | Module-variable discovery | `source/lib/rocprofiler-sdk/kernel_replay/memory_snapshot.cpp` | `discover_module_variables()`, `collect_module_variable()` |
+| Module-variable scan cache | `source/lib/rocprofiler-sdk/kernel_replay/module_variable_cache.{hpp,cpp}` | `module_variable_cache`, `cached_module_variables()` |
+| Loaded code object generation | `source/lib/rocprofiler-sdk/code_object/code_object.cpp` | `loaded_code_objects_generation()` |
 | Restore | `source/lib/rocprofiler-sdk/kernel_replay/memory_snapshot.cpp` | `restore()` |
 | Snapshot types | `source/lib/rocprofiler-sdk/kernel_replay/memory_snapshot.hpp` | `device_snapshot_t`, `mem_block_t` |
 | HSA hook installation | `source/lib/rocprofiler-sdk/kernel_replay/memory_tracker.cpp` | `memory_tracker_init()` |
