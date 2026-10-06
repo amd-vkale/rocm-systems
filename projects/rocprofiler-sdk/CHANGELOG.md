@@ -36,9 +36,9 @@ Full documentation for ROCprofiler-SDK is available at [rocm.docs.amd.com/projec
   - Kernel replay service (beta): In-process kernel dispatch replay allowing several counter groups to be collected in a single application run:
     - New experimental API in `rocprofiler-sdk/experimental/kernel_replay.h`, exposed as the callback tracing domain `ROCPROFILER_CALLBACK_TRACING_KERNEL_REPLAY` with the operations `ROCPROFILER_KERNEL_REPLAY_CONFIG` and `ROCPROFILER_KERNEL_REPLAY_PASS` (`rocprofiler_kernel_replay_operation_t`).
     - A tool sets `replay_pass_count` during CONFIG to choose the pass count per dispatch (fixed loop, indefinite loop, or per-dispatch opt-out), and optionally `replay_continue` to leave the loop early.
-    - `replay_start_context` and `replay_stop_context` mark an already-active context enabled or disabled for the current replay loop only, so a tool can position services per pass without touching global context state. Each context's pre-replay state is restored when the loop completes.
+    - Every context that is active when the dispatch is submitted collects on every pass. A tool that wants different data on different passes selects it inside its own service callbacks using the pass index.
     - Device memory is snapshotted and restored between passes so every pass observes identical inputs.
-    - Samples under `samples/kernel_replay/` cover counter collection, ATT, SPM, PC sampling, service sequencing, per-dispatch opt-out, and early exit.
+    - Samples under `samples/kernel_replay/` cover counter collection, ATT, SPM, per-dispatch opt-out, and early exit.
     - Beta, with documented limitations: only a single-packet, single-dispatch submission is replayed (HIP graph launches and multi-packet submissions run once), and the snapshot covers coarse-grained device allocations owned by the agent plus module-scope `__device__`/`__constant__` variables. Unified or managed memory, `hipMallocAsync` and other virtual-memory-mapped allocations, and host, fine-grained, and kernarg memory are not captured. See `how-to/using-kernel-replay.rst` for the full list.
 
   - Anytime initialization support:

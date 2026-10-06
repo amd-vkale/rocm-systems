@@ -22,7 +22,6 @@ take per-agent WRITER lock
   submit a barrier packet on this queue and wait on it   (queue drain)
   poll every queue on this agent until no async handler is in flight (agent-wide drain)
   snap()                                                 (device -> host)
-  install the localized-context-control guard
   for each pass:
       PASS PHASE_ENTER
       submit the dispatch
@@ -150,26 +149,6 @@ a separate change.
 [Memory snapshot and restore](kernel_replay_memory_snapshot.md#hip-graphs) for the two-tier warn
 and abort behavior.
 
-## Localized context control and thread scope
-
-When a tool toggles contexts per pass, the decisions are recorded in a thread-local override map
-that lives only for the duration of the replay loop; global context state is never modified. Two
-nested thread-local scopes are involved, both managed by the SDK:
-
-- **Loop scope** (`scoped_local_context_control`) owns the override map for the whole loop, which is
-  what gives toggles their sticky-across-passes semantics.
-- **Arm window** (`set_toggles_armed`) makes the tool-facing start/stop callbacks legal only while
-  the tool's PASS `PHASE_ENTER` callback is running. It is armed and disarmed through a scope guard,
-  so a throwing tool callback cannot leak the armed state.
-
-Because the map is thread-local and replays on an agent are serialized by the per-agent lock, a loop
-never nests on a thread and only the replaying thread's dispatches observe the overrides. Service
-consumers query `local_context_override()` at dispatch time, fronted by
-`local_context_has_overrides()` so an ordinary dispatch pays a single thread-local read.
-
-See [Callback API](kernel_replay_callback_api.md#localized-context-control) for the tool-facing
-contract.
-
 ## Source reference
 
 All paths are relative to `projects/rocprofiler-sdk/`.
@@ -184,5 +163,3 @@ All paths are relative to `projects/rocprofiler-sdk/`.
 | Agent-wide drain | `source/lib/rocprofiler-sdk/hsa/replay_window.cpp` | `replay_drain_agent_or_fatal()` |
 | One drain slice | `source/lib/rocprofiler-sdk/hsa/queue.cpp` | `Queue::sync()` |
 | Agent-scoped inventory | `source/lib/rocprofiler-sdk/kernel_replay/memory_tracker.cpp` | `snap_inventory()` |
-| Localized context scopes | `source/lib/rocprofiler-sdk/kernel_replay/local_context.hpp` | `scoped_local_context_control`, `set_toggles_armed()` |
-| Localized context consumer | `source/lib/rocprofiler-sdk/hsa/queue.cpp` | `local_context_has_overrides()` call in `process_packet_batch` |

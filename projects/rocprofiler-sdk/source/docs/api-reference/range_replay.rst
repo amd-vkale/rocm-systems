@@ -82,8 +82,8 @@ Cast ``record.payload`` to ``rocprofiler_callback_tracing_range_replay_data_t*``
        ``rocprofiler_range_replay_begin()``; the range has not executed yet.
    * - ``ROCPROFILER_RANGE_REPLAY_PASS``
      - ``PHASE_ENTER``
-     - Read ``current_pass`` / ``total_passes``. Optionally call
-       ``replay_local_start_context_cb`` / ``replay_local_stop_context_cb``.
+     - Read ``current_pass`` / ``total_passes``, for example to publish the pass index for the
+       tool's dispatch callbacks.
    * - ``ROCPROFILER_RANGE_REPLAY_PASS``
      - ``PHASE_EXIT``
      - Pass complete; ``replay_continue_cb`` (if set) runs after this.

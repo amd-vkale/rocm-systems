@@ -16,8 +16,7 @@ Kernel replay is a **standalone callback tracing service** under
 needed.
 
 That decouples replay from hardware counter collection, so a tool can use replay for counters,
-kernel timing, PC sampling, ATT, or anything else, and can enable or disable other contexts per
-pass through localized context control.
+kernel timing, PC sampling, ATT, or anything else. Every active context collects on every pass.
 
 ## Motivation
 
@@ -27,7 +26,6 @@ prototype) was:
 - Tightly coupled to dispatch counter collection
 - Mutually exclusive with regular dispatch counting on the same context
 - Limited to fixed pass counts (no indefinite loop / early exit)
-- Unable to give tools per-pass control over which services are active
 - Used file-backed dirty-page hashing that this design does not ship
 
 ## API surface (as designed)
@@ -41,40 +39,40 @@ deliberate:
 - **Tool-provided `replay_pass_count` during CONFIG `PHASE_ENTER`.** NULL means opt out of replay for
   that dispatch. Returning 0 requires `replay_continue` (indefinite loop). Returning 1 skips
   snapshot because a single pass is the ordinary path.
-- **Localized start/stop as function pointers on the PASS payload**, mirroring
-  `rocprofiler_start_context` / `rocprofiler_stop_context`, rather than a new public API.
-  There is no local way to configure a service. Every context a tool wants on any pass is
-  configured and started globally, before replay, exactly as it would be without replay; the
-  toggles only mask which of those already-active contexts participate in each pass. A toggle
-  cannot promote a context that is globally stopped, and a context the tool never masks stays
-  active on every pass.
+- **No per-pass context control.** Every context a tool wants is configured and started
+  globally, before replay, exactly as it would be without replay, and every active context
+  collects on every pass. Per-pass variation lives in the services' own dispatch callbacks; see
+  [Localized context control (removed)](#localized-context-control-removed).
 - **No pass-count environment variable.** A tool derives N itself — `rocprofv3`, for example, from
   its `--pmc` groups per agent.
 
 `ROCPROFILER_KERNEL_REPLAY_SNAPSHOT` and `ROCPROFILER_KERNEL_REPLAY_RESTORE` are TODOs in
 `fwd.h` for tool visibility into those phases; they are not implemented.
 
-## Localized context control
+## Localized context control (removed)
 
-The pointers are **wired**. During PASS `PHASE_ENTER` the SDK populates
-`replay_start_context` / `replay_stop_context`. Semantics:
+An earlier revision put two SDK-provided function pointers on the PASS payload,
+`replay_start_context` / `replay_stop_context` (`replay_local_start_context_cb` /
+`replay_local_stop_context_cb` for range replay). Called during PASS `PHASE_ENTER`, they masked an
+already-active context on or off for the rest of the replay loop through a thread-local override
+map that the dispatch-scoped services consulted at dispatch time. They were removed because:
 
-- Only legal during PASS `PHASE_ENTER`.
-- Sticky across passes (avoids reprogramming PC sampling hardware on every pass).
-- Scoped to the replay loop; global context state is never modified.
+- **Coverage was uneven.** Dispatch counters, SPM, dispatch thread trace and kernel dispatch
+  tracing consulted the override; PC sampling and device counting ignored it, so a toggle naming
+  such a context reported success and did nothing. The main use case, keeping incompatible
+  services such as dispatch counters and PC sampling on separate passes, was the one the toggles
+  could not deliver.
+- **It was a second activation mechanism.** With services driven by context start and stop rather
+  than queue callback registration, a context's active state is the single switch for whether a
+  service collects. The override map added a per-thread exception to that switch that each service
+  had to consult separately.
+- **Per-pass variation already has a home.** Counter and SPM dispatch callbacks choose a
+  configuration (or none) per dispatch, and the thread trace dispatch callback chooses whether to
+  trace it. A tool that publishes the pass index during PASS `PHASE_ENTER` can vary those per pass
+  without SDK support.
 
-Routing of the downcalls uses a thread-scoped override map (`scoped_local_context_control` +
-`set_toggles_armed`) installed around the replay loop. That is SDK-internal. If a tool-facing handle
-parameter proves cleaner, the signature may gain one — that is the one shape decision still open.
-(`replay_pass_count` and `replay_continue` are SDK→tool upcalls and need no such routing.)
-
-Counter collection, SPM, and ATT consult the override at dispatch time. Kernel dispatch tracing
-drops disabled contexts from the pass's tracing data. PC sampling and device counting are agent-wide
-and currently ignore localized overrides.
-
-Kernel replay is **not** gated on removing the queue callback registration mechanism. That removal
-would make per-pass enable/disable cleaner and is a planned improvement, but the feature works
-without it.
+Services that cannot share a dispatch therefore cannot share a replay, and a tool collects them in
+separate application runs.
 
 ## Callback flow (as implemented)
 
@@ -91,7 +89,7 @@ CONFIG PHASE_ENTER
   snapshot device memory (full in-memory copy; hashing is not used)
 
   loop (i = 0..N, or indefinitely if N==0):
-    PASS PHASE_ENTER  (current_pass=i, total_passes=N; local start/stop armed)
+    PASS PHASE_ENTER  (current_pass=i, total_passes=N)
     submit kernel
     drain async completion handler
     PASS PHASE_EXIT

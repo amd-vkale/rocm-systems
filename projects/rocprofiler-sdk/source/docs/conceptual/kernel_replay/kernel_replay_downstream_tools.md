@@ -133,8 +133,8 @@ collection is refused outright: `rocprofiler_configure_callback_dispatch_countin
 `ROCPROF_COUNTERS` as a fatal combination.
 
 **Kernel replay should not be added to lite trace.** The two are opposed by construction. Replay
-requires counter collection, multi-pass re-submission, a memory snapshot and restore around every
-dispatch, and per-pass context toggling — which is precisely the machinery lite trace exists to
+requires counter collection, multi-pass re-submission, and a memory snapshot and restore around
+every dispatch — which is precisely the machinery lite trace exists to
 avoid. Supporting it would mean linking the whole `kernel_replay/` subsystem, relaxing every service
 block that defines the mode, and disabling the fast path for any dispatch that gets replayed. At
 that point the mode is no longer lite, and the user is better served by the full SDK with

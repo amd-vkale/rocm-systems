@@ -11,7 +11,7 @@ Kernel replay is tested at four levels, and they differ mainly in what they need
 | Level | Location | Needs |
 | --- | --- | --- |
 | Public ABI and header contract | `source/lib/rocprofiler-sdk/kernel_replay/tests/replay_abi.cpp`, `replay_abi_c.c` | nothing |
-| Pure logic (context overrides, configuration) | `.../tests/local_context.cpp`, `replay_configure.cpp` | nothing |
+| Pure logic (configuration, callback phases) | `.../tests/replay_configure.cpp`, `replay_phases.cpp` | nothing |
 | Snapshot and tracker behaviour | `.../tests/snap_restore.cpp`, `snap_bandwidth.cpp` | a GPU |
 | End-to-end through `rocprofv3` | `tests/rocprofv3/kernel-replay/` | a GPU, except the CLI tests |
 | Performance regressions | `tests/kernel-replay-perf/`, `tests/queue-hooks-perf/` | a GPU |
@@ -80,9 +80,9 @@ These are known gaps, listed so they are not rediscovered:
   early exit, the restore-failure abort — is untested except on hardware.
 
   There is no mock HSA stack anywhere in the SDK to build such a test on. What exists is a set of
-  partial fakes, and none of them reach far enough: the `FakeQueue` used by the counters, SPM and
-  thread-trace local-context tests supplies only an agent and a queue id and still calls
-  `hsa_init()`, so it needs ROCr even though it never dispatches; `counters/tests/hsa_tables.cpp`
+  partial fakes, and none of them reach far enough: the `Queue` fakes in the thread-trace unit
+  tests supply only an agent and a queue id and still call `hsa_init()`, so they need ROCr even
+  though they never dispatch; `counters/tests/hsa_tables.cpp`
   builds an API table out of the *real* `hsa_*` function pointers and deliberately leaves the
   intercept-registration entries unwired. The closest thing to a synthetic packet flow is
   `source/lib/rocprofiler-sdk/tests/queue_interposition.cpp`, which drives ring buffers and
@@ -128,8 +128,8 @@ template to follow if it is ever wanted here. That project pins version 1.8.3 in
 to `FetchContent` from upstream, and gates the whole thing behind `PROFILER_HUB_BUILD_BENCHMARKS`.
 
 For kernel replay specifically, Google Benchmark would suit the parts whose cost is a function call
-rather than a run: snapshot inventory construction, the tracker's allocate and free hooks, the
-context override map. It would not suit the thing that actually dominates replay cost, which is
+rather than a run: snapshot inventory construction and the tracker's allocate and free hooks. It
+would not suit the thing that actually dominates replay cost, which is
 bytes moved per dispatch across the host link — that needs a real workload and a real device, which
 is what `tests/kernel-replay-perf/` and the `benchmark/` suite already do.
 

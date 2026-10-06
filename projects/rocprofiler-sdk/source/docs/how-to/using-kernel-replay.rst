@@ -1,6 +1,6 @@
 .. meta::
   :description: Using the ROCprofiler-SDK kernel replay callback tracing domain from a custom tool
-  :keywords: rocprofiler-sdk, kernel replay, callback tracing, KERNEL_REPLAY, replay_pass_count, local context
+  :keywords: rocprofiler-sdk, kernel replay, callback tracing, KERNEL_REPLAY, replay_pass_count
 
 .. _using-kernel-replay:
 
@@ -162,16 +162,15 @@ tool state in ``user_data.ptr``, reads the requested maximum from ``replay_pass_
 ``PASS PHASE_EXIT`` update stop the loop through ``replay_continue``, and asserts each row of the
 table above.
 
-Localized context control
-=========================
+Services on every pass
+======================
 
-During ``PASS`` ``PHASE_ENTER`` the payload carries ``replay_start_context`` /
-``replay_stop_context``. Use them to enable or disable override-aware contexts for that
-pass (for example counters on selected passes and thread trace once) without calling global
-``rocprofiler_start_context`` / ``rocprofiler_stop_context``. PC sampling is agent-wide and does
-not currently honor these callbacks, so it cannot be isolated to one replay pass.
-
-Overrides are sticky across passes and scoped to the replay loop. See
+Every context that is active when the dispatch is submitted collects on every pass. To vary the
+work per pass, publish ``current_pass`` in thread-local state during ``PASS`` ``PHASE_ENTER`` and
+select the work in the services' own dispatch callbacks: a counter or SPM configuration per pass,
+or the thread trace control flag. Kernel dispatch tracing records every pass, and PC sampling and
+device counting are agent-wide. Services that cannot share a dispatch, such as dispatch counters
+with PC sampling on MI2xx/MI3xx or ATT with SPM, cannot share a replay either. See
 :ref:`kernel-replay-callback-api` for the contract.
 
 In-tree examples
@@ -179,12 +178,13 @@ In-tree examples
 
 * ``samples/kernel_replay/basic_client_with_user_data.cpp`` — threads mutable tool state through
   ``user_data.ptr`` without a dispatch-id side table.
+* ``samples/kernel_replay/counters_client.cpp`` — publishes the pass index during ``PASS``
+  ``PHASE_ENTER`` and selects a different counter configuration on each pass from the dispatch
+  counting callback.
 * ``tests/kernel-replay-concurrency/`` — custom client that replays one kernel and opts another
   out, asserting concurrent non-replayed work is not corrupted by snapshot/restore.
-* ``tests/kernel-replay-local-context/`` — custom client that starts/stops per-service contexts
-  across passes.
-* ``source/lib/rocprofiler-sdk/kernel_replay/tests/`` — unit tests for configure, local context,
-  and snap/restore.
+* ``source/lib/rocprofiler-sdk/kernel_replay/tests/`` — unit tests for configure, callback phases,
+  the public ABI, and snap/restore.
 
 What is snapshotted
 ===================

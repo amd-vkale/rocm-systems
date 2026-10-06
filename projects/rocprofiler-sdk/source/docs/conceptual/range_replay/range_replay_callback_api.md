@@ -75,9 +75,6 @@ typedef struct rocprofiler_callback_tracing_range_replay_data_t
     uint64_t current_pass;
     uint64_t total_passes;
 
-    rocprofiler_status_t (*replay_local_start_context_cb)(rocprofiler_context_id_t);
-    rocprofiler_status_t (*replay_local_stop_context_cb)(rocprofiler_context_id_t);
-
     rocprofiler_agent_id_t            agent_id;
     uint64_t                          dispatch_count;
     rocprofiler_range_replay_status_t status;
@@ -92,7 +89,6 @@ typedef struct rocprofiler_callback_tracing_range_replay_data_t
 | `replay_continue_cb` | `CONFIG` | **tool writes, optional.** Continue-decision after each re-executed pass |
 | `current_pass` | `PASS` | 1-based index of the re-executed pass |
 | `total_passes` | `PASS` | what `pass_count_cb` returned, or 0 when open-ended |
-| `replay_local_start_context_cb` / `..._stop_...` | `PASS` `PHASE_ENTER` | localized context toggles |
 | `agent_id` | `PASS`, `CLOSE` | agent the range bound to; zero handle if nothing was recorded |
 | `dispatch_count` | `PASS`, `CLOSE` | dispatches observed in the range |
 | `status` | `CLOSE` | `REPLAYED`, or why the range was declined |
@@ -124,20 +120,19 @@ this range" from "the SDK could not".
 `replay_continue_cb` returns non-zero to keep going and zero to stop. It is consulted after each
 re-executed pass, and is required when `pass_count_cb` returns 0.
 
-## Localized context control
+## Services on every pass
 
-The `PASS` toggles have exactly the semantics of kernel replay's: valid only while the tool's `PASS`
-`PHASE_ENTER` callback is running, sticky across passes of the range, scoped to that range's replay
-loop, and unable to promote a context that is globally inactive. The implementation is the same
-thread-local override machinery, reused unchanged from
-`kernel_replay/local_context.hpp`. See
-[Kernel replay — localized context control](../kernel_replay/kernel_replay_callback_api.md#localized-context-control)
-for the full contract.
+As with kernel replay, there is no per-pass context control. Every context that is active when the
+range's dispatches are submitted collects on the application's own execution and on every
+re-executed pass. A tool that wants different data on different passes publishes the pass index
+during `PASS` `PHASE_ENTER` and selects the work in its services' dispatch callbacks. See
+[Kernel replay — services on every pass](../kernel_replay/kernel_replay_callback_api.md#services-on-every-pass)
+for what each service can select and which services cannot share a replay.
 
-The one behavioral difference follows from pass 0 being the application's: a toggle cannot affect it.
-By the time the tool's first `PASS` callback runs, the application's execution of the range is
-already complete. A tool that wants a specific counter group on the live run must have it active
-before `begin`.
+Pass 0 raises no `PASS` callback: by the time the tool's first `PASS` callback runs, the
+application's execution of the range is already complete. Inside an open range, a dispatch callback
+that finds no pass index published is seeing pass 0, so that is where a tool selects what it wants
+measured on the live run.
 
 ## Configuring the service
 
