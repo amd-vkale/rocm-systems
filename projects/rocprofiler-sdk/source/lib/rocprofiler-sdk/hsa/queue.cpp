@@ -40,6 +40,7 @@
 #include "lib/rocprofiler-sdk/kernel_dispatch/profiling_time.hpp"
 #include "lib/rocprofiler-sdk/kernel_dispatch/tracing.hpp"
 #include "lib/rocprofiler-sdk/kernel_replay/blit-copy.hpp"
+#include "lib/rocprofiler-sdk/kernel_replay/drain_backoff.hpp"
 #include "lib/rocprofiler-sdk/kernel_replay/local_context.hpp"
 #include "lib/rocprofiler-sdk/kernel_replay/memory_snapshot.hpp"
 #include "lib/rocprofiler-sdk/kernel_replay/replay_callbacks.hpp"
@@ -172,16 +173,18 @@ replay_drain_or_fatal(const Queue& queue)
 // held (destroy_queue erases under the write lock), and the live set is re-read every poll. The
 // per-agent writer lock held by the replay window blocks new dispatches on the agent, so in-flight
 // work only decreases and the poll converges; fatal on a genuinely stuck queue (beta feature),
-// matching replay_drain_or_fatal.
+// matching replay_drain_or_fatal. The poll interval backs off from back-to-back polls (see
+// kernel_replay::drain_backoff): the usual wait is a sibling's completion handler that finishes
+// in microseconds, and a fixed 2 ms sleep made every such window pay 2 ms.
 void
 replay_drain_agent_or_fatal(hsa_agent_t agent)
 {
     auto* queue_controller = get_queue_controller();
     if(queue_controller == nullptr) return;
 
-    constexpr auto poll_interval = std::chrono::milliseconds{2};
-    constexpr auto max_wait      = std::chrono::seconds{drain_budget_secs};
-    const auto     deadline      = std::chrono::steady_clock::now() + max_wait;
+    constexpr auto max_wait = std::chrono::seconds{drain_budget_secs};
+    const auto     deadline = std::chrono::steady_clock::now() + max_wait;
+    auto           backoff  = kernel_replay::drain_backoff{};
 
     for(;;)
     {
@@ -198,7 +201,7 @@ replay_drain_agent_or_fatal(hsa_agent_t agent)
             in_flight,
             drain_budget_secs);
 
-        std::this_thread::sleep_for(poll_interval);
+        backoff.wait();
     }
 }
 

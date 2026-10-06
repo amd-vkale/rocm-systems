@@ -2,6 +2,7 @@
 set(ROCPROFILER_LIB_KERNEL_REPLAY_HEADERS
     blit-copy-kernel.hpp
     blit-copy.hpp
+    drain_backoff.hpp
     kernel_replay.hpp
     local_context.hpp
     memory_snapshot.hpp
