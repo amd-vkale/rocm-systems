@@ -23,18 +23,25 @@
 #include "lib/rocprofiler-sdk/kernel_replay/memory_snapshot.hpp"
 
 #include "lib/common/logging.hpp"
+#include "lib/common/scope_destructor.hpp"
+#include "lib/common/synchronized.hpp"
 #include "lib/rocprofiler-sdk/code_object/code_object.hpp"
 #include "lib/rocprofiler-sdk/code_object/hsa/code_object.hpp"
 #include "lib/rocprofiler-sdk/hsa/hsa.hpp"
+#include "lib/rocprofiler-sdk/kernel_replay/device_backing_pool.hpp"
 #include "lib/rocprofiler-sdk/kernel_replay/memory_tracker.hpp"
+#include "lib/rocprofiler-sdk/kernel_replay/module_variable_cache.hpp"
 
 #include <fmt/format.h>
 #include <hsa/hsa.h>
 
+#include <algorithm>
 #include <cstdint>
+#include <iterator>
 #include <new>
 #include <optional>
 #include <string_view>
+#include <unordered_map>
 #include <vector>
 
 namespace rocprofiler
@@ -70,27 +77,10 @@ with_inventory_check(void* gpu_addr, size_t size, CopyFn&& copy)
         });
 }
 
-// A module-scope variable (__device__ / __constant__ global) discovered in a loaded executable.
-struct module_variable_t
-{
-    void*  gpu_addr = nullptr;
-    size_t size     = 0;
-};
-
 // Upper bound on a single module-scope variable the snapshot will capture. This guards against a
 // mis-reported HSA symbol size turning into a huge host allocation; it is not a supported limit,
 // and exceeding it is reported rather than ignored (see collect_module_variable).
 constexpr uint64_t module_variable_size_cap = 1ULL << 30;  // 1 GiB
-
-// Result of enumerating module-scope variables. `incomplete` means HSA could not be asked about at
-// least one executable or symbol, so the set below may be missing a writable __device__ global.
-// Treated as a failed snapshot rather than a partial one: a variable we never captured is a
-// variable we never restore, and passes 2..N would silently read state accumulated by pass 1.
-struct module_variable_scan_t
-{
-    std::vector<module_variable_t> found{};
-    bool                           incomplete = false;
-};
 
 // hsa_executable_iterate_agent_symbols callback: collect HSA_SYMBOL_KIND_VARIABLE symbols
 // (device address + size) into the scan passed via `data`. The HSA callback cannot capture, so
@@ -126,6 +116,26 @@ collect_module_variable(hsa_executable_t, hsa_agent_t, hsa_executable_symbol_t s
     {
         out->incomplete = true;
         return HSA_STATUS_SUCCESS;
+    }
+
+    // HIP emits a one-byte compilation-unit marker into every code object. It is linker/runtime
+    // metadata rather than application state, and snapshotting it would make the replay-owned blit
+    // code object recursively add another restore region.
+    if(size == 1)
+    {
+        constexpr auto hip_cuid_prefix = std::string_view{"__hip_cuid_"};
+        uint32_t       name_length     = 0;
+        if(core->hsa_executable_symbol_get_info_fn(symbol,
+                                                   HSA_EXECUTABLE_SYMBOL_INFO_NAME_LENGTH,
+                                                   &name_length) == HSA_STATUS_SUCCESS &&
+           name_length >= hip_cuid_prefix.size())
+        {
+            auto name = std::vector<char>(name_length + 1, '\0');
+            if(core->hsa_executable_symbol_get_info_fn(
+                   symbol, HSA_EXECUTABLE_SYMBOL_INFO_NAME, name.data()) == HSA_STATUS_SUCCESS &&
+               std::string_view{name.data()}.substr(0, hip_cuid_prefix.size()) == hip_cuid_prefix)
+                return HSA_STATUS_SUCCESS;
+        }
     }
 
     if(addr == 0 || size == 0) return HSA_STATUS_SUCCESS;
@@ -178,12 +188,136 @@ discover_module_variables(hsa_agent_t agent)
     });
     return scan;
 }
+
+module_variable_cache&
+get_module_variable_cache()
+{
+    // Leaked: snap() can run from a replay window that outlives static destruction.
+    static auto* value = new module_variable_cache{};
+    return *value;
+}
+
+// Every replayed dispatch snapshots, and a full scan walks every symbol of every loaded executable
+// (thousands of HSA queries for a library like rocBLAS), so reuse the last scan until the set of
+// loaded code objects changes. The generation is sampled before the scan, so a load or unload that
+// races the scan makes the next snap() rescan.
+module_variable_cache::scan_ptr_t
+cached_module_variables(hsa_agent_t agent)
+{
+    const auto generation = code_object::loaded_code_objects_generation();
+    return get_module_variable_cache().get(
+        agent.handle, generation, [agent]() { return discover_module_variables(agent); });
+}
+
+size_t
+release_idle_backing();
+
+device_backing_pool&
+backing_pool()
+{
+    // Leaked: a snapshot can be destroyed during static destruction, when HSA may already be gone,
+    // so idle backing is left for process teardown instead of being freed here.
+    static auto* value = [] {
+        auto* pool = new device_backing_pool{
+            [](uint64_t pool_handle, uint64_t agent_handle, size_t bytes) -> void* {
+                auto* ext = hsa::get_amd_ext_table();
+                if(!ext || !ext->hsa_amd_memory_pool_allocate_fn ||
+                   !ext->hsa_amd_agents_allow_access_fn || !ext->hsa_amd_memory_pool_free_fn)
+                    return nullptr;
+
+                void* ptr = nullptr;
+                if(ext->hsa_amd_memory_pool_allocate_fn(
+                       hsa_amd_memory_pool_t{.handle = pool_handle}, bytes, 0, &ptr) !=
+                       HSA_STATUS_SUCCESS ||
+                   !ptr)
+                    return nullptr;
+
+                const auto agent = hsa_agent_t{.handle = agent_handle};
+                if(ext->hsa_amd_agents_allow_access_fn(1, &agent, nullptr, ptr) ==
+                   HSA_STATUS_SUCCESS)
+                    return ptr;
+                ext->hsa_amd_memory_pool_free_fn(ptr);
+                return nullptr;
+            },
+            [](void* ptr) {
+                auto* ext = hsa::get_amd_ext_table();
+                if(ext && ext->hsa_amd_memory_pool_free_fn) ext->hsa_amd_memory_pool_free_fn(ptr);
+            }};
+        memory_tracker::set_out_of_memory_hook(&release_idle_backing);
+        return pool;
+    }();
+    return *value;
+}
+
+size_t
+release_idle_backing()
+{
+    const auto freed = backing_pool().release_idle();
+    if(freed > 0)
+        ROCP_INFO << fmt::format("kernel-replay snapshot: released {} bytes of idle snapshot "
+                                 "backing so an application allocation can retry",
+                                 freed);
+    return freed;
+}
+
+bool
+allocate_device_copy(hsa_amd_memory_pool_t pool, hsa_agent_t agent, size_t size, mem_block_t& blk)
+{
+    if(pool.handle == 0) return false;
+    auto block = backing_pool().acquire(pool.handle, agent.handle, size);
+    if(!block) return false;
+    blk.device_copy     = block->ptr;
+    blk.device_capacity = block->capacity;
+    blk.device_pool     = pool;
+    return true;
+}
 }  // namespace
+
+mem_block_t::~mem_block_t()
+{
+    if(!device_copy) return;
+    backing_pool().release(device_pool.handle,
+                           device_backing_pool::block_t{device_copy, device_capacity});
+}
+
+mem_block_t::mem_block_t(mem_block_t&& rhs) noexcept
+: gpu_addr{std::exchange(rhs.gpu_addr, nullptr)}
+, device_copy{std::exchange(rhs.device_copy, nullptr)}
+, device_pool{std::exchange(rhs.device_pool, hsa_amd_memory_pool_t{.handle = 0})}
+, device_capacity{std::exchange(rhs.device_capacity, 0)}
+, copy_size{std::exchange(rhs.copy_size, 0)}
+, host_copy{std::move(rhs.host_copy)}
+, from_tracker{std::exchange(rhs.from_tracker, false)}
+, captured{std::exchange(rhs.captured, true)}
+{}
+
+mem_block_t&
+mem_block_t::operator=(mem_block_t&& rhs) noexcept
+{
+    if(this == &rhs) return *this;
+    this->~mem_block_t();
+    new(this) mem_block_t{std::move(rhs)};
+    return *this;
+}
 
 device_snapshot_t
 snap(hsa_agent_t agent)
 {
+    return snap(agent, hsa_amd_memory_pool_t{.handle = 0});
+}
+
+device_snapshot_t
+snap(hsa_agent_t agent, hsa_amd_memory_pool_t gpu_pool, capture_mode mode)
+{
     device_snapshot_t out{};
+
+    // Idle backing that neither this snapshot nor the previous one reused is freed when this one
+    // returns, successful or not, so the pool holds the recent footprints, not every size seen.
+    const auto trim_token =
+        (gpu_pool.handle != 0) ? backing_pool().begin_snapshot(gpu_pool.handle) : uint64_t{0};
+    auto trim = common::scope_destructor{[&]() {
+        if(gpu_pool.handle != 0) backing_pool().end_snapshot(gpu_pool.handle, trim_token);
+    }};
 
     // Note: trackable allocations carrying HSA_AMD_MEMORY_POOL_EXECUTABLE_FLAG are recorded in
     // memory_tracker::unsupported_executable() and omitted from the main inventory. Declining
@@ -197,13 +331,13 @@ snap(hsa_agent_t agent)
     // replay and runs the dispatch once. Aborting here instead would kill the application over an
     // opt-in beta feature, and a large allocation inventory is exactly when it would happen.
     auto inventory = memory_tracker::alloc_map_t{};
-    auto scan      = module_variable_scan_t{};
+    auto scan_ptr  = module_variable_cache::scan_ptr_t{};
     try
     {
         inventory = memory_tracker::snap_inventory(agent);
-        scan      = discover_module_variables(agent);
+        scan_ptr  = cached_module_variables(agent);
 
-        out.blocks.reserve(inventory.size() + scan.found.size());
+        out.blocks.reserve(inventory.size() + scan_ptr->found.size());
     } catch(const std::bad_alloc&)
     {
         LOG_FIRST_N(WARNING, 1) << "kernel-replay snapshot: out of memory reserving metadata; "
@@ -211,6 +345,7 @@ snap(hsa_agent_t agent)
         out.ok = false;
         return out;
     }
+    const auto& scan = *scan_ptr;
 
     // An executable or symbol HSA would not tell us about may hold a writable __device__ global. We
     // cannot restore what we did not capture, so the passes would not see identical inputs.
@@ -225,9 +360,12 @@ snap(hsa_agent_t agent)
 
     const auto& module_vars = scan.found;
 
-    /// @brief Capture one region (device->host) into the snapshot.
-    /// @retval false The snapshot is incomplete because a host allocation or the DMA copy failed.
-    /// The caller must decline replay rather than restore partial state.
+    size_t device_backed = 0;
+    size_t host_backed   = 0;
+
+    /// @brief Capture one region into GPU-local backing when available, otherwise host memory.
+    /// @retval false The snapshot is incomplete because backing allocation or the copy failed. The
+    /// caller must decline replay rather than restore partial state.
     /// @retval true The region was captured. For tracker regions it may instead have been dropped
     /// after being freed or shrunk since snap_inventory(). That drop is safe because restore() runs
     /// the same liveness check, so a region gone now could not have been restored anyway.
@@ -237,18 +375,38 @@ snap(hsa_agent_t agent)
 
         auto blk         = mem_block_t{};
         blk.gpu_addr     = gpu_addr;
+        blk.copy_size    = size;
         blk.from_tracker = from_tracker;
-        try
+
+        if(allocate_device_copy(gpu_pool, agent, size, blk))
         {
-            blk.host_copy.resize(size);
-        } catch(const std::bad_alloc&)
+            ++device_backed;
+        }
+        else
         {
-            ROCP_WARNING << fmt::format("kernel-replay snapshot: host allocation of {} bytes "
-                                        "failed for {} {} (memory pressure)",
-                                        size,
-                                        what,
-                                        gpu_addr);
-            return false;
+            try
+            {
+                blk.host_copy.resize(size);
+                ++host_backed;
+            } catch(const std::bad_alloc&)
+            {
+                ROCP_WARNING << fmt::format("kernel-replay snapshot: host allocation of {} "
+                                            "bytes failed for {} {} (memory pressure)",
+                                            size,
+                                            what,
+                                            gpu_addr);
+                return false;
+            }
+        }
+        auto* snapshot_addr =
+            blk.device_copy ? blk.device_copy : static_cast<void*>(blk.host_copy.data());
+
+        // Deferred: the copy is batched into capture(), which re-checks liveness itself.
+        if(blk.device_copy && mode == capture_mode::deferred)
+        {
+            blk.captured = false;
+            out.blocks.push_back(std::move(blk));
+            return true;
         }
 
         // snap_inventory() released the tracker lock before returning. A host thread calling
@@ -262,10 +420,8 @@ snap(hsa_agent_t agent)
         const auto st =
             from_tracker
                 ? with_inventory_check(
-                      gpu_addr,
-                      size,
-                      [&] { return dma_copy(blk.host_copy.data(), gpu_addr, size); })
-                : std::optional<hsa_status_t>{dma_copy(blk.host_copy.data(), gpu_addr, size)};
+                      gpu_addr, size, [&] { return dma_copy(snapshot_addr, gpu_addr, size); })
+                : std::optional<hsa_status_t>{dma_copy(snapshot_addr, gpu_addr, size)};
 
         if(!st)
         {
@@ -280,10 +436,7 @@ snap(hsa_agent_t agent)
         if(*st != HSA_STATUS_SUCCESS)
         {
             ROCP_WARNING << fmt::format(
-                "kernel-replay snapshot: device->host copy failed for {} {} ({}B)",
-                what,
-                gpu_addr,
-                size);
+                "kernel-replay snapshot: copy failed for {} {} ({}B)", what, gpu_addr, size);
             return false;
         }
 
@@ -312,16 +465,99 @@ snap(hsa_agent_t agent)
         }
     }
 
-    ROCP_INFO << fmt::format("kernel-replay snapshot: captured {} regions (tracked allocations + "
-                             "module variables) for agent {}",
+    ROCP_INFO << fmt::format("kernel-replay snapshot: {} {} regions ({} GPU-local, {} host) "
+                             "for agent {}",
+                             (mode == capture_mode::deferred) ? "prepared" : "captured",
                              out.blocks.size(),
+                             device_backed,
+                             host_backed,
                              agent.handle);
     return out;
 }
 
 bool
+has_pending_capture(const device_snapshot_t& snapshot)
+{
+    return std::any_of(snapshot.blocks.begin(), snapshot.blocks.end(), [](const auto& blk) {
+        return !blk.captured;
+    });
+}
+
+size_t
+retained_backing_bytes(hsa_amd_memory_pool_t pool)
+{
+    return backing_pool().idle_bytes(pool.handle);
+}
+
+hsa_status_t
+copy_regions(const std::vector<blit::copy_region_t>& regions)
+{
+    for(const auto& region : regions)
+    {
+        const auto status = dma_copy(region.dst, region.src, region.size);
+        if(status != HSA_STATUS_SUCCESS) return status;
+    }
+    return HSA_STATUS_SUCCESS;
+}
+
+bool
+capture(device_snapshot_t& snapshot, const batch_copy_fn_t& submit)
+{
+    size_t dropped = 0;
+    size_t pending = 0;
+
+    const auto status = memory_tracker::inventory().rlock([&](const auto& map) {
+        // The same liveness rule restore() applies: a tracked region freed or shrunk since snap()
+        // cannot be read now and could not be restored later, so it leaves the snapshot.
+        auto& blocks = snapshot.blocks;
+        auto  gone   = std::remove_if(blocks.begin(), blocks.end(), [&](const mem_block_t& blk) {
+            if(blk.captured || !blk.from_tracker) return false;
+            auto itr = map.find(blk.gpu_addr);
+            return itr == map.end() || itr->second.size < blk.copy_size;
+        });
+        dropped      = static_cast<size_t>(std::distance(gone, blocks.end()));
+        blocks.erase(gone, blocks.end());
+
+        auto regions = std::vector<blit::copy_region_t>{};
+        for(const auto& blk : blocks)
+        {
+            if(!blk.captured)
+                regions.emplace_back(
+                    blit::copy_region_t{blk.device_copy, blk.gpu_addr, blk.copy_size});
+        }
+        pending = regions.size();
+
+        auto copy_status = submit(regions);
+        if(copy_status != HSA_STATUS_SUCCESS) return copy_status;
+
+        for(auto& blk : blocks)
+            blk.captured = true;
+        return HSA_STATUS_SUCCESS;
+    });
+
+    if(status != HSA_STATUS_SUCCESS)
+    {
+        ROCP_ERROR << fmt::format("kernel-replay snapshot: batched capture of {} regions failed",
+                                  pending);
+        return false;
+    }
+
+    ROCP_INFO << fmt::format("kernel-replay snapshot: captured {} GPU-local regions in one batch "
+                             "({} retired since snap)",
+                             pending,
+                             dropped);
+    return true;
+}
+
+bool
 restore(const device_snapshot_t& snapshot)
 {
+    if(has_pending_capture(snapshot))
+    {
+        ROCP_ERROR << "kernel-replay restore: snapshot still has regions waiting for capture()";
+        return false;
+    }
+
     size_t restored = 0;
     for(const auto& blk : snapshot.blocks)
     {
@@ -333,8 +569,8 @@ restore(const device_snapshot_t& snapshot)
             // check and the write (see with_inventory_check). A nullopt result means the region is
             // no longer a live allocation of at least its size. It was freed or reallocated after
             // snap, so skip it (benign -- not a restore failure).
-            const auto st = with_inventory_check(blk.gpu_addr, blk.host_copy.size(), [&] {
-                return dma_copy(blk.gpu_addr, blk.host_copy.data(), blk.host_copy.size());
+            const auto st = with_inventory_check(blk.gpu_addr, blk.copy_size, [&] {
+                return dma_copy(blk.gpu_addr, blk.saved_data(), blk.copy_size);
             });
 
             if(!st)
@@ -342,7 +578,7 @@ restore(const device_snapshot_t& snapshot)
                 ROCP_WARNING << fmt::format(
                     "kernel-replay restore: skipping region {} ({}B) that is no longer live",
                     blk.gpu_addr,
-                    blk.host_copy.size());
+                    blk.copy_size);
                 continue;
             }
             status = *st;
@@ -350,7 +586,7 @@ restore(const device_snapshot_t& snapshot)
         else
         {
             // Module variable: lives in the loaded executable, always present, so restore directly.
-            status = dma_copy(blk.gpu_addr, blk.host_copy.data(), blk.host_copy.size());
+            status = dma_copy(blk.gpu_addr, blk.saved_data(), blk.copy_size);
         }
 
         if(status != HSA_STATUS_SUCCESS)
@@ -359,10 +595,10 @@ restore(const device_snapshot_t& snapshot)
             // final pass (which deliberately skips restore) would leave that corruption visible to
             // the application. Abort: a partial restore cannot be undone.
             ROCP_ERROR << fmt::format(
-                "kernel-replay restore: host->device copy failed for region {} ({}B); aborting "
+                "kernel-replay restore: copy failed for region {} ({}B). Aborting "
                 "restore after {}/{} regions",
                 blk.gpu_addr,
-                blk.host_copy.size(),
+                blk.copy_size,
                 restored,
                 snapshot.blocks.size());
             return false;
@@ -372,6 +608,71 @@ restore(const device_snapshot_t& snapshot)
 
     ROCP_INFO << fmt::format(
         "kernel-replay restore: restored {}/{} regions", restored, snapshot.blocks.size());
+    return true;
+}
+
+bool
+restore(const device_snapshot_t& snapshot, const batch_copy_fn_t& batch_copy)
+{
+    if(has_pending_capture(snapshot))
+    {
+        ROCP_ERROR << "kernel-replay restore: snapshot still has regions waiting for capture()";
+        return false;
+    }
+
+    std::vector<blit::copy_region_t> device_regions;
+    device_regions.reserve(snapshot.blocks.size());
+    size_t restored = 0;
+    size_t skipped  = 0;
+
+    const auto status = memory_tracker::inventory().rlock([&](const auto& map) {
+        for(const auto& blk : snapshot.blocks)
+        {
+            if(blk.from_tracker)
+            {
+                auto itr = map.find(blk.gpu_addr);
+                if(itr == map.end() || itr->second.size < blk.copy_size)
+                {
+                    ROCP_WARNING << fmt::format(
+                        "kernel-replay restore: skipping region {} ({}B) that is no longer live",
+                        blk.gpu_addr,
+                        blk.copy_size);
+                    ++skipped;
+                    continue;
+                }
+            }
+
+            if(blk.device_copy)
+            {
+                device_regions.emplace_back(
+                    blit::copy_region_t{blk.gpu_addr, blk.saved_data(), blk.copy_size});
+            }
+            else
+            {
+                auto copy_status = dma_copy(blk.gpu_addr, blk.saved_data(), blk.copy_size);
+                if(copy_status != HSA_STATUS_SUCCESS) return copy_status;
+                ++restored;
+            }
+        }
+
+        auto copy_status = batch_copy(device_regions);
+        if(copy_status != HSA_STATUS_SUCCESS) return copy_status;
+        restored += device_regions.size();
+        return HSA_STATUS_SUCCESS;
+    });
+
+    if(status != HSA_STATUS_SUCCESS)
+    {
+        ROCP_ERROR << fmt::format("kernel-replay restore: batch copy failed after {}/{} regions",
+                                  restored,
+                                  snapshot.blocks.size());
+        return false;
+    }
+
+    ROCP_INFO << fmt::format("kernel-replay restore: restored {}/{} regions ({} skipped)",
+                             restored,
+                             snapshot.blocks.size(),
+                             skipped);
     return true;
 }
 }  // namespace memory_snapshot

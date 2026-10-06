@@ -42,6 +42,7 @@
 #include <hip/hip_runtime.h>
 #include <hsa/hsa_ext_amd.h>
 
+#include <algorithm>
 #include <array>
 #include <cstdint>
 #include <vector>
@@ -559,4 +560,222 @@ TEST(kernel_replay_snapshot, restore_prevents_module_variable_accumulation_acros
 
     EXPECT_EQ(kernel_launch::read_module_counter(), kBase)
         << "module variable accumulated across passes instead of being restored";
+}
+
+namespace
+{
+// A coarse-grained global pool on `agent`, the kind the replay window passes to snap() for
+// GPU-local snapshot backing.
+hsa_amd_memory_pool_t
+gpu_backing_pool(hsa_agent_t agent)
+{
+    auto  pool = hsa_amd_memory_pool_t{.handle = 0};
+    auto* ext  = hsa::get_amd_ext_table();
+    if(!ext || !ext->hsa_amd_agent_iterate_memory_pools_fn) return pool;
+
+    ext->hsa_amd_agent_iterate_memory_pools_fn(
+        agent,
+        [](hsa_amd_memory_pool_t candidate, void* data) {
+            auto* table   = hsa::get_amd_ext_table();
+            auto  segment = hsa_amd_segment_t{};
+            auto  flags   = uint32_t{0};
+            if(table->hsa_amd_memory_pool_get_info_fn(
+                   candidate, HSA_AMD_MEMORY_POOL_INFO_SEGMENT, &segment) != HSA_STATUS_SUCCESS ||
+               segment != HSA_AMD_SEGMENT_GLOBAL)
+                return HSA_STATUS_SUCCESS;
+            if(table->hsa_amd_memory_pool_get_info_fn(candidate,
+                                                      HSA_AMD_MEMORY_POOL_INFO_GLOBAL_FLAGS,
+                                                      &flags) != HSA_STATUS_SUCCESS ||
+               (flags & HSA_AMD_MEMORY_POOL_GLOBAL_FLAG_COARSE_GRAINED) == 0)
+                return HSA_STATUS_SUCCESS;
+            *static_cast<hsa_amd_memory_pool_t*>(data) = candidate;
+            return HSA_STATUS_INFO_BREAK;
+        },
+        &pool);
+    return pool;
+}
+
+size_t
+blocks_at(const msnp::device_snapshot_t& snapshot, const void* addr)
+{
+    return std::count_if(snapshot.blocks.begin(), snapshot.blocks.end(), [addr](const auto& blk) {
+        return blk.gpu_addr == addr;
+    });
+}
+}  // namespace
+
+// A deferred snapshot allocates GPU-local backing but copies nothing until capture(); the copy
+// reflects device memory at capture time, and only then may the snapshot be restored.
+TEST(kernel_replay_snapshot, deferred_snapshot_restores_after_capture)
+{
+    if(!ensure_live_tracking()) GTEST_SKIP() << "could not activate rocprofiler / no HIP GPU";
+
+    const auto agent = gpu_agent();
+    ASSERT_NE(agent.handle, 0U) << "no GPU agent found";
+    const auto pool = gpu_backing_pool(agent);
+    if(pool.handle == 0) GTEST_SKIP() << "no coarse-grained GPU pool for snapshot backing";
+
+    float* buffer = nullptr;
+    ASSERT_EQ(hipMalloc(&buffer, N_ELEMS * sizeof(float)), hipSuccess);
+    launch_fill(buffer, -1.0f, N_ELEMS);
+
+    auto snapshot = msnp::snap(agent, pool, msnp::capture_mode::deferred);
+    ASSERT_TRUE(snapshot.ok);
+    ASSERT_EQ(blocks_at(snapshot, buffer), 1u);
+    ASSERT_TRUE(msnp::has_pending_capture(snapshot));
+    EXPECT_FALSE(msnp::restore(snapshot)) << "an uncaptured snapshot must never be restored";
+
+    // Written after snap() but before capture(): this is the state the passes must start from.
+    launch_iota(buffer, 1.0f, N_ELEMS);
+    ASSERT_TRUE(msnp::capture(snapshot, msnp::copy_regions));
+    EXPECT_FALSE(msnp::has_pending_capture(snapshot));
+
+    launch_add(buffer, 9000.0f, N_ELEMS);
+    ASSERT_TRUE(msnp::restore(snapshot));
+    auto restored = read_device(buffer, N_ELEMS);
+    for(size_t i = 0; i < N_ELEMS; ++i)
+        ASSERT_FLOAT_EQ(restored[i], 1.0f + i) << "post-restore elem " << i;
+
+    ASSERT_EQ(hipFree(buffer), hipSuccess);
+}
+
+// A region freed between snap() and capture() must leave the snapshot: it can no longer be read,
+// and restoring it later would write into memory the application no longer owns.
+TEST(kernel_replay_snapshot, deferred_capture_drops_regions_freed_since_snap)
+{
+    if(!ensure_live_tracking()) GTEST_SKIP() << "could not activate rocprofiler / no HIP GPU";
+
+    const auto agent = gpu_agent();
+    ASSERT_NE(agent.handle, 0U) << "no GPU agent found";
+    const auto pool = gpu_backing_pool(agent);
+    if(pool.handle == 0) GTEST_SKIP() << "no coarse-grained GPU pool for snapshot backing";
+
+    float* keep = nullptr;
+    float* gone = nullptr;
+    ASSERT_EQ(hipMalloc(&keep, N_ELEMS * sizeof(float)), hipSuccess);
+    ASSERT_EQ(hipMalloc(&gone, N_ELEMS * sizeof(float)), hipSuccess);
+    launch_iota(keep, 3.0f, N_ELEMS);
+
+    auto snapshot = msnp::snap(agent, pool, msnp::capture_mode::deferred);
+    ASSERT_TRUE(snapshot.ok);
+    ASSERT_EQ(blocks_at(snapshot, gone), 1u);
+
+    ASSERT_EQ(hipFree(gone), hipSuccess);
+    ASSERT_TRUE(msnp::capture(snapshot, msnp::copy_regions));
+    EXPECT_EQ(blocks_at(snapshot, gone), 0u) << "a region freed before capture must be dropped";
+    EXPECT_EQ(blocks_at(snapshot, keep), 1u);
+
+    launch_add(keep, 5.0f, N_ELEMS);
+    ASSERT_TRUE(msnp::restore(snapshot));
+    auto restored = read_device(keep, N_ELEMS);
+    for(size_t i = 0; i < N_ELEMS; ++i)
+        ASSERT_FLOAT_EQ(restored[i], 3.0f + i) << "post-restore elem " << i;
+
+    ASSERT_EQ(hipFree(keep), hipSuccess);
+}
+
+// When the batched copy fails the snapshot stays uncaptured, so it can never be restored.
+TEST(kernel_replay_snapshot, deferred_capture_failure_keeps_snapshot_unrestorable)
+{
+    if(!ensure_live_tracking()) GTEST_SKIP() << "could not activate rocprofiler / no HIP GPU";
+
+    const auto agent = gpu_agent();
+    ASSERT_NE(agent.handle, 0U) << "no GPU agent found";
+    const auto pool = gpu_backing_pool(agent);
+    if(pool.handle == 0) GTEST_SKIP() << "no coarse-grained GPU pool for snapshot backing";
+
+    float* buffer = nullptr;
+    ASSERT_EQ(hipMalloc(&buffer, N_ELEMS * sizeof(float)), hipSuccess);
+
+    auto snapshot = msnp::snap(agent, pool, msnp::capture_mode::deferred);
+    ASSERT_TRUE(snapshot.ok);
+
+    auto calls  = 0;
+    auto failed = [&](const std::vector<rocprofiler::kernel_replay::blit::copy_region_t>& regions) {
+        ++calls;
+        EXPECT_FALSE(regions.empty());
+        return HSA_STATUS_ERROR;
+    };
+    EXPECT_FALSE(msnp::capture(snapshot, failed));
+    EXPECT_EQ(calls, 1);
+    EXPECT_TRUE(msnp::has_pending_capture(snapshot));
+    EXPECT_FALSE(msnp::restore(snapshot));
+
+    ASSERT_EQ(hipFree(buffer), hipSuccess);
+}
+
+// GPU-local backing outlives a snapshot so the next replayed dispatch can reuse it, but only the
+// recent footprints: backing for a region the application freed is released once two snapshots in
+// a row did not need it.
+TEST(kernel_replay_snapshot, retained_backing_follows_recent_footprints)
+{
+    if(!ensure_live_tracking()) GTEST_SKIP() << "could not activate rocprofiler / no HIP GPU";
+
+    const auto agent = gpu_agent();
+    ASSERT_NE(agent.handle, 0U) << "no GPU agent found";
+    const auto pool = gpu_backing_pool(agent);
+    if(pool.handle == 0) GTEST_SKIP() << "no coarse-grained GPU pool for snapshot backing";
+
+    constexpr size_t bytes = 64u << 20;
+    float*           keep  = nullptr;
+    float*           gone  = nullptr;
+    ASSERT_EQ(hipMalloc(&keep, bytes), hipSuccess);
+    ASSERT_EQ(hipMalloc(&gone, bytes), hipSuccess);
+
+    {
+        auto snapshot = msnp::snap(agent, pool, msnp::capture_mode::deferred);
+        ASSERT_TRUE(snapshot.ok);
+    }
+    const auto both = msnp::retained_backing_bytes(pool);
+    EXPECT_GE(both, 2 * bytes) << "backing is kept for the next snapshot";
+
+    // The freed region's backing is kept through the next snapshot and released by the one after.
+    ASSERT_EQ(hipFree(gone), hipSuccess);
+    for(int i = 0; i < 2; ++i)
+    {
+        auto snapshot = msnp::snap(agent, pool, msnp::capture_mode::deferred);
+        ASSERT_TRUE(snapshot.ok);
+    }
+    EXPECT_LE(msnp::retained_backing_bytes(pool), both - bytes)
+        << "the freed region's backing must not stay idle once two snapshots did not need it";
+
+    ASSERT_EQ(hipFree(keep), hipSuccess);
+}
+
+// Idle snapshot backing must never be why an application allocation fails: when the allocation
+// needs that memory, the tracker releases the backing and retries.
+TEST(kernel_replay_snapshot, application_allocation_reclaims_idle_backing)
+{
+    if(!ensure_live_tracking()) GTEST_SKIP() << "could not activate rocprofiler / no HIP GPU";
+
+    const auto agent = gpu_agent();
+    ASSERT_NE(agent.handle, 0U) << "no GPU agent found";
+    const auto pool = gpu_backing_pool(agent);
+    if(pool.handle == 0) GTEST_SKIP() << "no coarse-grained GPU pool for snapshot backing";
+
+    size_t free_bytes = 0, total_bytes = 0;
+    ASSERT_EQ(hipMemGetInfo(&free_bytes, &total_bytes), hipSuccess);
+    if(free_bytes < (size_t{16} << 30)) GTEST_SKIP() << "needs at least 16 GiB of free VRAM";
+
+    // A region of 40% of free memory; its deferred snapshot allocates the same again as backing,
+    // which stays idle after the snapshot is destroyed.
+    const auto region_bytes = (free_bytes / 10 * 4) & ~size_t{0xFFFFF};
+    void*      region       = nullptr;
+    ASSERT_EQ(hipMalloc(&region, region_bytes), hipSuccess);
+    {
+        auto snapshot = msnp::snap(agent, pool, msnp::capture_mode::deferred);
+        ASSERT_TRUE(snapshot.ok);
+    }
+    ASSERT_GE(msnp::retained_backing_bytes(pool), region_bytes);
+
+    // Fits only if the idle backing is handed back.
+    ASSERT_EQ(hipMemGetInfo(&free_bytes, &total_bytes), hipSuccess);
+    const auto big_bytes = (free_bytes + region_bytes / 2) & ~size_t{0xFFFFF};
+    void*      big       = nullptr;
+    EXPECT_EQ(hipMalloc(&big, big_bytes), hipSuccess)
+        << "an allocation that needs the idle backing must get it";
+    EXPECT_EQ(msnp::retained_backing_bytes(pool), 0u);
+
+    if(big) EXPECT_EQ(hipFree(big), hipSuccess);
+    ASSERT_EQ(hipFree(region), hipSuccess);
 }

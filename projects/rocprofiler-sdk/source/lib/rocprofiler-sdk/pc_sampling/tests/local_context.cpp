@@ -42,10 +42,10 @@ as_active(const context::context& ctx)
 }
 }  // namespace
 
-// PC sampling is agent-wide and does not consult local_context_override(). A recorded
-// local stop must succeed (the TLS map is service-agnostic) but must not flip the
-// sampler's enabled flag. Reprogramming PCS hardware per pass is exactly what the
-// sticky override is meant to avoid; until a consumer is wired, collection is a no-op.
+// PC sampling is agent-wide. A recorded local stop must succeed (the TLS map is
+// service-agnostic) but must not flip the sampler's enabled flag: reprogramming PCS hardware
+// per pass is exactly what the sticky override is meant to avoid. The override is consumed
+// where each dispatch's PC sampling marker is built, which drops that pass's samples.
 TEST(pc_sampling, local_context_override_does_not_toggle_enabled)
 {
     context::context ctx{};
@@ -86,13 +86,13 @@ TEST(pc_sampling, local_context_override_restart_does_not_toggle_enabled)
     kernel_replay::set_toggles_armed(false);
     EXPECT_FALSE(*kernel_replay::local_context_override({.handle = ctx.context_idx}));
     EXPECT_TRUE(ctx.pc_sampler->enabled.load())
-        << "PC sampling ignores a local stop; the sampler stays globally active";
+        << "a local stop does not stop the agent-wide sampler; the sampler stays globally active";
 
     kernel_replay::set_toggles_armed(true);
     EXPECT_EQ(kernel_replay::replay_local_enable_context({.handle = ctx.context_idx}),
               ROCPROFILER_STATUS_SUCCESS);
     kernel_replay::set_toggles_armed(false);
     EXPECT_TRUE(*kernel_replay::local_context_override({.handle = ctx.context_idx}));
-    EXPECT_TRUE(ctx.pc_sampler->enabled.load())
-        << "PC sampling ignores a local start; the sampler stays globally active";
+    EXPECT_TRUE(ctx.pc_sampler->enabled.load()) << "a local start does not restart the agent-wide "
+                                                   "sampler; the sampler stays globally active";
 }

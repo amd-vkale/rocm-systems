@@ -23,7 +23,9 @@
 #include "lib/rocprofiler-sdk/pc_sampling/hsa_adapter.hpp"
 #include "lib/rocprofiler-sdk/hsa/queue.hpp"
 #include "lib/rocprofiler-sdk/kernel_dispatch/profiling_time.hpp"
+#include "lib/rocprofiler-sdk/kernel_replay/local_context.hpp"
 #include "lib/rocprofiler-sdk/pc_sampling/defines.hpp"
+#include "lib/rocprofiler-sdk/pc_sampling/parser/correlation.hpp"
 
 #if ROCPROFILER_SDK_HSA_PC_SAMPLING > 0
 
@@ -203,10 +205,38 @@ data_ready_callback(void*                                client_callback_data,
 }  // namespace
 
 rocprofiler::hsa::rocprofiler_packet
+generate_suppressed_marker_packet()
+{
+    amd_aql_intercept_marker_t marker_pkt;
+    marker_pkt.header       = HSA_PACKET_TYPE_VENDOR_SPECIFIC;
+    marker_pkt.format       = AMD_AQL_FORMAT_INTERCEPT_MARKER;
+    marker_pkt.callback     = amd_intercept_marker_handler_callback;
+    marker_pkt.user_data[0] = Parser::suppressed_internal_correlation_id;
+    marker_pkt.user_data[1] = 0;
+    marker_pkt.user_data[2] = 0;
+    return rocprofiler::hsa::rocprofiler_packet(marker_pkt);
+}
+
+bool
+pc_sampling_locally_stopped()
+{
+    if(!kernel_replay::local_context_has_overrides()) return false;
+    auto contexts = context::get_registered_contexts(
+        [](const auto* ctx) { return ctx->pc_sampler != nullptr; });
+    for(const auto* ctx : contexts)
+    {
+        auto local = kernel_replay::local_context_override({.handle = ctx->context_idx});
+        if(local.has_value() && !*local) return true;
+    }
+    return false;
+}
+
+rocprofiler::hsa::rocprofiler_packet
 generate_marker_packet_for_kernel(
     context::correlation_id*                      correlation_id,
     const tracing::external_correlation_id_map_t& external_correlation_ids,
-    const rocprofiler_dispatch_id_t               dispatch_id)
+    const rocprofiler_dispatch_id_t               dispatch_id,
+    bool                                          suppress_samples)
 {
     // This function executes for each kernel dispatched to the agent on which
     // the PC sampling service is configured.
@@ -252,6 +282,14 @@ generate_marker_packet_for_kernel(
 
     // dispatch_id should always be present
     marker_pkt.user_data[2] = dispatch_id;
+
+    // The reference taken above still pairs with the kernel's completion; only the samples go.
+    if(suppress_samples)
+    {
+        marker_pkt.user_data[0] = Parser::suppressed_internal_correlation_id;
+        marker_pkt.user_data[1] = 0;
+        marker_pkt.user_data[2] = 0;
+    }
 
     return rocprofiler::hsa::rocprofiler_packet(marker_pkt);
 }

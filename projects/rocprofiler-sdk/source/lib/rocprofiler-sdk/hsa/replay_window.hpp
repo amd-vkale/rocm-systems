@@ -110,7 +110,9 @@ replay_drain_or_fatal(const Queue& queue);
 // held (destroy_queue erases under the write lock), and the live set is re-read every poll. The
 // per-agent writer lock held by the replay window blocks new dispatches on the agent, so in-flight
 // work only decreases and the poll converges; fatal on a genuinely stuck queue (beta feature),
-// matching replay_drain_or_fatal.
+// matching replay_drain_or_fatal. The poll interval backs off from back-to-back polls (see
+// kernel_replay::drain_backoff): the usual wait is a sibling's completion handler that finishes
+// in microseconds, and a fixed 2 ms sleep made every such window pay 2 ms.
 void
 replay_drain_agent_or_fatal(hsa_agent_t agent);
 

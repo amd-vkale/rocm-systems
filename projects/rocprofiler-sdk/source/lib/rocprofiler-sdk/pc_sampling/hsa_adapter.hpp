@@ -39,11 +39,24 @@ namespace pc_sampling
 {
 namespace hsa
 {
+// With `suppress_samples`, the samples the kernel produces are dropped instead of attributed to
+// `dispatch_id` (the correlation id is still referenced, so its completion is unchanged).
 rocprofiler::hsa::rocprofiler_packet
 generate_marker_packet_for_kernel(
     context::correlation_id*                      correlation_id,
     const tracing::external_correlation_id_map_t& external_correlation_ids,
-    const rocprofiler_dispatch_id_t               dispatch_id);
+    const rocprofiler_dispatch_id_t               dispatch_id,
+    bool                                          suppress_samples = false);
+
+// Marker for a packet the SDK itself puts on an application queue (a kernel replay blit): samples
+// taken while it runs are dropped rather than attributed to whichever dispatch last used the slot.
+rocprofiler::hsa::rocprofiler_packet
+generate_suppressed_marker_packet();
+
+// True while a kernel replay pass has locally stopped the context holding the PC sampling service,
+// so the dispatches of that pass must not contribute samples.
+bool
+pc_sampling_locally_stopped();
 
 void
 pc_sampling_service_start(context::pc_sampling_service* service);

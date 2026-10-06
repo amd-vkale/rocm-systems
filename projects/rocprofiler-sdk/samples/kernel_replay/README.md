@@ -29,7 +29,7 @@ service (same idea as `samples/counter_collection/`).
 | `kernel-replay-basic` | 4 | Replay only. The app still sees one kernel completion. |
 | `kernel-replay-basic-user-data` | 4 max / 2 actual | Carries tool state through `user_data.ptr`; PASS state stops replay through `replay_continue`. |
 | `kernel-replay-counters` | 3 | Dispatch counters; each pass selects a different counter configuration. |
-| `kernel-replay-counters-then-pc-sampling` | — | **Disabled in ctest:** PC sampling ignores localized pass overrides (see API docs). |
+| `kernel-replay-counters-then-pc-sampling` | — | **Disabled in ctest:** PC sampling drops the samples of passes that stop it, but its hardware keeps sampling during the counter passes (MI2xx/MI3xx clock-gating conflict; see API docs). |
 | `kernel-replay-att` | 2 | Counters on pass 0, ATT on pass 1. |
 | `kernel-replay-spm` | 2 | Counters on pass 0, SPM on pass 1. |
 | `kernel-replay-opt-out` | 3 / 1 | Replays the `bump` kernel (`block.x == 67`); leaves `nudge` unreplayed. |

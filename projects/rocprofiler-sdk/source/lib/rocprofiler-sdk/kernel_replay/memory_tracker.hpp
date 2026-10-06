@@ -98,6 +98,14 @@ tracking_pool_allocate(hsa_amd_memory_pool_t pool, size_t size, uint32_t flags, 
 hsa_status_t
 tracking_pool_free(void* ptr);
 
+// Called when an application pool allocation fails for lack of memory; returns the bytes it freed.
+// A non-zero result makes the allocation retry once. The snapshot installs one that releases the
+// GPU-local backing it keeps between replayed dispatches.
+using out_of_memory_hook_t = size_t (*)();
+
+void
+set_out_of_memory_hook(out_of_memory_hook_t hook);
+
 // The Synchronized allocation inventory. Exposed so restore() can look up a block and copy it under
 // the read lock, which blocks a concurrent free for the copy. Callers reachable during finalization
 // must first gate on registration::get_fini_status(): the alloc/free wrappers outlive this static,

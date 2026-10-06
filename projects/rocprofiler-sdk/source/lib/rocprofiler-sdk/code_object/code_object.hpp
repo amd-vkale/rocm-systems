@@ -58,6 +58,11 @@ get_kernel_id(uint64_t kernel_object);
 void
 iterate_loaded_code_objects(code_object_iterator_t&& func);
 
+// Changes whenever a code object is added to or removed from the list iterate_loaded_code_objects()
+// walks. Sample it before iterating: if it still matches later, the list has not changed since.
+uint64_t
+loaded_code_objects_generation();
+
 void
 initialize(HsaApiTable* table);
 

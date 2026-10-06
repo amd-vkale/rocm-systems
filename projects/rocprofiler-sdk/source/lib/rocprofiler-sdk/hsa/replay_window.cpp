@@ -27,6 +27,7 @@
 #include "lib/rocprofiler-sdk/hsa/queue.hpp"
 #include "lib/rocprofiler-sdk/hsa/queue_controller.hpp"
 #include "lib/rocprofiler-sdk/hsa/rocprofiler_packet.hpp"
+#include "lib/rocprofiler-sdk/kernel_replay/drain_backoff.hpp"
 
 #include <rocprofiler-sdk/cxx/hash.hpp>
 #include <rocprofiler-sdk/cxx/operators.hpp>
@@ -76,9 +77,9 @@ replay_drain_agent_or_fatal(hsa_agent_t agent)
     auto* queue_controller = get_queue_controller();
     if(queue_controller == nullptr) return;
 
-    constexpr auto poll_interval = std::chrono::milliseconds{2};
-    constexpr auto max_wait      = std::chrono::seconds{drain_budget_secs};
-    const auto     deadline      = std::chrono::steady_clock::now() + max_wait;
+    constexpr auto max_wait = std::chrono::seconds{drain_budget_secs};
+    const auto     deadline = std::chrono::steady_clock::now() + max_wait;
+    auto           backoff  = kernel_replay::drain_backoff{};
 
     for(;;)
     {
@@ -95,7 +96,7 @@ replay_drain_agent_or_fatal(hsa_agent_t agent)
             in_flight,
             drain_budget_secs);
 
-        std::this_thread::sleep_for(poll_interval);
+        backoff.wait();
     }
 }
 

@@ -47,6 +47,10 @@ operator==(device_handle a, device_handle b)
 
 namespace Parser
 {
+// Internal correlation id of a dispatch whose samples must be dropped: a kernel replay pass that
+// does not sample, or a blit the replay window queues on the application's queue.
+inline constexpr uint64_t suppressed_internal_correlation_id = ~uint64_t{0};
+
 struct dispatch_correlation_ids_t
 {
     rocprofiler_dispatch_id_t          dispatch_id;
@@ -258,6 +262,14 @@ add_upcoming_samples(const device_handle     device,
         {
             Parser::trap_correlation_id_t trap{.raw = snap->correlation_id};
             auto                          dispatch_correlation_ids = corr_map->get(device, trap);
+            if(dispatch_correlation_ids.correlation_id.internal ==
+               Parser::suppressed_internal_correlation_id)
+            {
+                // Kept out of the tool's buffer when the records are emplaced.
+                pc_sample.dispatch_id    = 0;
+                pc_sample.correlation_id = dispatch_correlation_ids.correlation_id;
+                continue;
+            }
             pc_sample.dispatch_id    = dispatch_correlation_ids.dispatch_id;
             pc_sample.correlation_id = dispatch_correlation_ids.correlation_id;
 

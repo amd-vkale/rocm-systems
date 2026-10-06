@@ -40,6 +40,7 @@
 #include "lib/rocprofiler-sdk/hsa/signal_pool.hpp"
 #include "lib/rocprofiler-sdk/kernel_dispatch/profiling_time.hpp"
 #include "lib/rocprofiler-sdk/kernel_dispatch/tracing.hpp"
+#include "lib/rocprofiler-sdk/kernel_replay/blit-copy.hpp"
 #include "lib/rocprofiler-sdk/kernel_replay/local_context.hpp"
 #include "lib/rocprofiler-sdk/kernel_replay/memory_snapshot.hpp"
 #include "lib/rocprofiler-sdk/kernel_replay/replay_callbacks.hpp"
@@ -794,9 +795,15 @@ WriteInterceptor(const void* packets,
 #if ROCPROFILER_SDK_HSA_PC_SAMPLING > 0
             if(pc_sampling::is_pc_sample_service_configured(queue.get_agent().get_rocp_agent()->id))
             {
+                // A kernel replay pass that has locally stopped PC sampling still runs on a
+                // sampled agent; its samples are dropped so each dispatch is sampled once, on the
+                // pass the tool chose.
                 transformed_packets.emplace_back(
                     pc_sampling::hsa::generate_marker_packet_for_kernel(
-                        corr_id, _packet_data.tracing_data.external_correlation_ids, dispatch_id));
+                        corr_id,
+                        _packet_data.tracing_data.external_correlation_ids,
+                        dispatch_id,
+                        is_replay_pass && pc_sampling::hsa::pc_sampling_locally_stopped()));
             }
 #endif
 
@@ -1003,11 +1010,17 @@ WriteInterceptor(const void* packets,
             // amd-vkale).
             replay_drain_agent_or_fatal(replay_agent);
 
+            ROCP_FATAL_IF(kernel_replay::blit::prepare(queue) != HSA_STATUS_SUCCESS)
+                << "kernel replay: failed to prepare internal blit kernel";
+
             // Save this agent's tracked device allocations so every pass runs against identical
-            // inputs. snap() returns ok=false if it could not capture the complete set (host memory
-            // pressure, a failed copy, or module-scope variables it could not enumerate). It logs
-            // which of those it hit.
-            const auto snapshot = kernel_replay::memory_snapshot::snap(replay_agent);
+            // inputs. Prefer GPU-local backing from this agent's pool, with host memory as the
+            // allocation-pressure fallback. GPU-local regions only get their backing here; the
+            // first pass copies them all in one blit (memory_snapshot::capture).
+            auto snapshot = kernel_replay::memory_snapshot::snap(
+                replay_agent,
+                queue.get_agent().gpu_pool(),
+                kernel_replay::memory_snapshot::capture_mode::deferred);
 
             // Snapshot incomplete: restoring a partial snapshot between passes would corrupt
             // application data, so decline replay. Close the CONFIG sequence, free our drain
@@ -1040,8 +1053,51 @@ WriteInterceptor(const void* packets,
             auto local_ctx_tls_guard =
                 kernel_replay::scoped_local_context_control{context::get_active_contexts()};
 
-            // Per-pass loop: PASS enter -> submit -> drain the async handler -> PASS exit -> ask
-            // the tool whether to continue -> restore device memory before the next pass.
+            auto restore_packets = std::vector<kernel_replay::blit::packet_info>{};
+
+            // The capture and restore blits run on the application's queue. On a PC-sampled agent
+            // their samples would be attributed to whichever dispatch last used the ring slot, so
+            // each blit is preceded by a marker that has them dropped.
+            const auto submit_blit = [&](const auto& regions) {
+#if ROCPROFILER_SDK_HSA_PC_SAMPLING > 0
+                if(!regions.empty() && pc_sampling::is_pc_sample_service_configured(
+                                           queue.get_agent().get_rocp_agent()->id))
+                {
+                    const auto marker = pc_sampling::hsa::generate_suppressed_marker_packet();
+                    writer(&marker, 1);
+                }
+#endif
+                return kernel_replay::blit::copy(queue, writer, regions, restore_packets);
+            };
+
+            auto submit_and_drain_pass = [&]() {
+                process_packet_batch(packets_arr,
+                                     1,
+                                     forward_to_writer,
+                                     /*is_replay_pass=*/true,
+                                     replay_dispatch_id);
+
+                // Drain this pass's async handler (separate HSA thread: reads counters, emits
+                // records, releases signals/corr-id refs) before PASS EXIT / continue-decision /
+                // next submit, else we race its record delivery and reuse buffers and signals it
+                // still holds. This also implies GPU drain. Exactly one handler is in flight per
+                // pass (we drain before each submit, under the agent writer lock).
+                ROCP_FATAL_IF(queue.active_async_packets() > 1)
+                    << fmt::format("kernel replay: more than one async handler in flight during "
+                                   "a replay pass");
+                replay_drain_or_fatal(queue);
+
+                // The target kernel was queued behind the restore dependency barrier. Its
+                // completion proves the blit also completed, so the packet can be retired without
+                // another wait.
+                for(auto& restore : restore_packets)
+                    ROCP_FATAL_IF(restore.retire() != HSA_STATUS_SUCCESS)
+                        << "kernel replay: asynchronous restore blit failed";
+                restore_packets.clear();
+            };
+
+            // Per-pass loop: PASS enter -> optional restore -> submit -> drain the async handler ->
+            // PASS exit -> ask the tool whether to continue.
             for(uint64_t pass = 0;; ++pass)
             {
                 const bool is_final =
@@ -1051,20 +1107,44 @@ WriteInterceptor(const void* packets,
                 kernel_replay::execute_pass_phase_enter(
                     replay_plan, pass, thr_id, internal_corr_id, ancestor_corr_id, pass_state);
 
-                process_packet_batch(packets_arr,
-                                     1,
-                                     forward_to_writer,
-                                     /*is_replay_pass=*/true,
-                                     replay_dispatch_id);
+                if(pass == 0)
+                {
+                    // Capture the GPU-local regions with one blit queued directly ahead of the
+                    // first pass, under the inventory read lock like the restores below, instead of
+                    // one synchronous copy per region. If the blit cannot be created nothing has
+                    // reached the queue yet, so the same copies are made synchronously instead.
+                    const auto capture_then_run = [&](const auto& regions) {
+                        if(submit_blit(regions) != HSA_STATUS_SUCCESS)
+                        {
+                            auto status = kernel_replay::memory_snapshot::copy_regions(regions);
+                            if(status != HSA_STATUS_SUCCESS) return status;
+                        }
 
-                // Drain this pass's async handler (separate HSA thread: reads counters, emits
-                // records, releases signals/corr-id refs) before PASS EXIT / continue-decision /
-                // restore() / next submit, else we race its record delivery and reuse buffers and
-                // signals it still holds. This also implies GPU drain. Exactly one handler is in
-                // flight per pass (we drain before each submit, under the agent writer lock).
-                ROCP_FATAL_IF(queue.active_async_packets() > 1) << fmt::format(
-                    "kernel replay: more than one async handler in flight during a replay pass");
-                replay_drain_or_fatal(queue);
+                        submit_and_drain_pass();
+                        return HSA_STATUS_SUCCESS;
+                    };
+                    ROCP_FATAL_IF(
+                        !kernel_replay::memory_snapshot::capture(snapshot, capture_then_run))
+                        << "kernel replay: snapshot capture failed ahead of the first pass. "
+                           "Aborting rather than replaying from an incomplete snapshot";
+                }
+                else
+                {
+                    // memory_snapshot::restore invokes this callback while holding the inventory
+                    // read lock. Submit the target directly behind the blit and drain it before
+                    // returning, so the lock remains held until both packets complete.
+                    const auto batch_copy = [&](const auto& regions) {
+                        auto status = submit_blit(regions);
+                        if(status != HSA_STATUS_SUCCESS) return status;
+
+                        submit_and_drain_pass();
+                        return HSA_STATUS_SUCCESS;
+                    };
+                    ROCP_FATAL_IF(!kernel_replay::memory_snapshot::restore(snapshot, batch_copy))
+                        << fmt::format("kernel replay: restore failed between passes (partial "
+                                       "host->device copy). Aborting rather than continuing with "
+                                       "corrupted device memory");
+                }
 
                 kernel_replay::execute_pass_phase_exit(replay_plan, pass, pass_state);
 
@@ -1072,14 +1152,6 @@ WriteInterceptor(const void* packets,
                 // pass leaves device memory as the app expects, so no restore follows the break.
                 if(!kernel_replay::should_continue_replay(replay_plan, pass_state, pass, is_final))
                     break;
-
-                // Restore device memory between passes so the next pass sees identical inputs.
-                // A failed host->device copy leaves the snapshot only partially applied; continuing
-                // would submit the next pass over corrupted memory and (because the final pass
-                // skips restore) would also leave that corruption visible to the application.
-                ROCP_FATAL_IF(!kernel_replay::memory_snapshot::restore(snapshot)) << fmt::format(
-                    "kernel replay: restore failed between passes (partial host->device copy); "
-                    "aborting rather than continuing with corrupted device memory");
             }
 
             kernel_replay::execute_config_phase_exit(
