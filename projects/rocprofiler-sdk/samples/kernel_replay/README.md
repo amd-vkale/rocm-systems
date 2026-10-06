@@ -29,8 +29,8 @@ service (same idea as `samples/counter_collection/`).
 | `kernel-replay-basic` | 4 | Replay only. The app still sees one kernel completion. |
 | `kernel-replay-basic-user-data` | 4 max / 2 actual | Carries tool state through `user_data.ptr`; PASS state stops replay through `replay_continue`. |
 | `kernel-replay-counters` | 3 | Dispatch counters; each pass selects a different counter configuration. |
-| `kernel-replay-att` | 2 | ATT on every pass. |
-| `kernel-replay-spm` | 2 | SPM on every pass. |
+| `kernel-replay-att` | 2 | Counters on pass 0, ATT on pass 1, each chosen in its service's dispatch callback. |
+| `kernel-replay-spm` | 2 | Counters on pass 0, SPM on pass 1, each chosen in its service's dispatch callback. |
 | `kernel-replay-opt-out` | 3 / 1 | Replays the `bump` kernel (`block.x == 67`); leaves `nudge` unreplayed. |
 | `kernel-replay-early-exit` | 4 / 2 | Sets `replay_continue` to stop after pass 1 even though `replay_pass_count` returns 4. |
 
@@ -43,8 +43,11 @@ dispatch must not be active in the same replay:
   MI2xx/MI3xx requires clock gating off. Running both on the same dispatch can hang the GPU.
 - ATT and SPM both inject AQL instrumentation around the dispatch, so they cannot share one either.
 
-Collect such services in separate runs. Within one service, a tool can still vary the work per
-pass, for example the counter configuration it returns for each pass (`kernel-replay-counters`).
+Collect such services in separate runs. A tool still varies the work per pass from each service's
+dispatch callback, using the pass index it records at PASS `PHASE_ENTER`: `kernel-replay-counters`
+returns a different counter configuration on each pass, and `kernel-replay-att` /
+`kernel-replay-spm` return no counter configuration on the pass that runs thread trace or SPM, and
+no thread trace or SPM on the other.
 
 `ROCPROFILER_SPM_BETA_ENABLED=True` is required for the SPM sample.
 

@@ -4,6 +4,7 @@
 
 #include "client.hpp"
 
+#include <rocprofiler-sdk/dispatch_counting_service.h>
 #include <rocprofiler-sdk/experimental/kernel_replay.h>
 #include <rocprofiler-sdk/experimental/thread_trace.h>
 #include <rocprofiler-sdk/registration.h>
@@ -14,13 +15,18 @@
 
 namespace
 {
-constexpr uint64_t kPasses = 2;
+constexpr uint64_t kPasses  = 2;
+constexpr uint64_t kAttPass = kPasses - 1;
 
 rocprofiler_context_id_t g_replay_ctx{0};
+rocprofiler_context_id_t g_counters_ctx{0};
 rocprofiler_context_id_t g_att_ctx{0};
 rocprofiler_kernel_id_t  g_target_kernel = UINT64_MAX;
 
+std::atomic<int> g_counter_records{0};
 std::atomic<int> g_att_records{0};
+// Set at PASS PHASE_ENTER; the dispatch callbacks of that pass run on the same thread.
+thread_local uint64_t tl_pass = 0;
 
 uint64_t replay_pass_count(rocprofiler_kernel_dispatch_info_t, rocprofiler_user_data_t)
 {
@@ -39,7 +45,36 @@ kernel_replay_cb(rocprofiler_callback_tracing_record_t record, rocprofiler_user_
     {
         p->replay_pass_count = replay_pass_count;
         g_target_kernel      = p->dispatch_info.kernel_id;
+        return;
     }
+
+    if(record.operation == ROCPROFILER_KERNEL_REPLAY_PASS &&
+       record.phase == ROCPROFILER_CALLBACK_PHASE_ENTER)
+        tl_pass = p->current_pass;
+}
+
+void
+counter_dispatch_cb(rocprofiler_dispatch_counting_service_data_t d,
+                    rocprofiler_counter_config_id_t*             config,
+                    rocprofiler_user_data_t*,
+                    void*)
+{
+    if(d.dispatch_info.kernel_id != g_target_kernel || tl_pass == kAttPass)
+    {
+        *config = rocprofiler_counter_config_id_t{.handle = 0};
+        return;
+    }
+    *config = sq_waves_config(d.dispatch_info.agent_id);
+}
+
+void
+counter_record_cb(rocprofiler_dispatch_counting_service_data_t d,
+                  rocprofiler_counter_record_t*,
+                  size_t,
+                  rocprofiler_user_data_t,
+                  void*)
+{
+    if(d.dispatch_info.kernel_id == g_target_kernel) g_counter_records.fetch_add(1);
 }
 
 rocprofiler_thread_trace_control_flags_t
@@ -51,8 +86,9 @@ att_dispatch_cb(rocprofiler_agent_id_t,
                 void*,
                 rocprofiler_user_data_t*)
 {
-    return (kernel_id == g_target_kernel) ? ROCPROFILER_THREAD_TRACE_CONTROL_START_AND_STOP
-                                          : ROCPROFILER_THREAD_TRACE_CONTROL_NONE;
+    return (kernel_id == g_target_kernel && tl_pass == kAttPass)
+               ? ROCPROFILER_THREAD_TRACE_CONTROL_START_AND_STOP
+               : ROCPROFILER_THREAD_TRACE_CONTROL_NONE;
 }
 
 void att_shader_cb(rocprofiler_thread_trace_shader_data_t, rocprofiler_user_data_t)
@@ -71,6 +107,11 @@ tool_init(rocprofiler_client_finalize_t, void*)
                                                        0,
                                                        kernel_replay_cb,
                                                        nullptr));
+
+    KR_CHECK(rocprofiler_create_context(&g_counters_ctx));
+    KR_CHECK(rocprofiler_configure_callback_dispatch_counting_service(
+        g_counters_ctx, counter_dispatch_cb, nullptr, counter_record_cb, nullptr));
+    KR_CHECK(rocprofiler_start_context(g_counters_ctx));
 
     KR_CHECK(rocprofiler_create_context(&g_att_ctx));
     bool any_att = false;
@@ -100,13 +141,11 @@ tool_init(rocprofiler_client_finalize_t, void*)
 void
 tool_fini(void*)
 {
-    // Thread trace runs on every replay pass, so each pass delivers at least one shader-data
-    // record.
     fprintf(stderr,
-            "[att] att_records=%d (expected at least %lu)\n",
-            g_att_records.load(),
-            static_cast<unsigned long>(kPasses));
-    if(g_att_records.load() < static_cast<int>(kPasses)) std::abort();
+            "[att] counter_records=%d att_records=%d\n",
+            g_counter_records.load(),
+            g_att_records.load());
+    if(g_counter_records.load() != 1 || g_att_records.load() == 0) std::abort();
 }
 }  // namespace
 

@@ -4,6 +4,7 @@
 
 #include "client.hpp"
 
+#include <rocprofiler-sdk/dispatch_counting_service.h>
 #include <rocprofiler-sdk/experimental/kernel_replay.h>
 #include <rocprofiler-sdk/experimental/spm.h>
 #include <rocprofiler-sdk/registration.h>
@@ -17,13 +18,18 @@
 
 namespace
 {
-constexpr uint64_t kPasses = 2;
+constexpr uint64_t kPasses  = 2;
+constexpr uint64_t kSpmPass = kPasses - 1;
 
 rocprofiler_context_id_t g_replay_ctx{0};
+rocprofiler_context_id_t g_counters_ctx{0};
 rocprofiler_context_id_t g_spm_ctx{0};
 rocprofiler_kernel_id_t  g_target_kernel = UINT64_MAX;
 
+std::atomic<int> g_counter_records{0};
 std::atomic<int> g_spm_records{0};
+// Set at PASS PHASE_ENTER; the dispatch callbacks of that pass run on the same thread.
+thread_local uint64_t tl_pass = 0;
 
 uint64_t replay_pass_count(rocprofiler_kernel_dispatch_info_t, rocprofiler_user_data_t)
 {
@@ -42,7 +48,36 @@ kernel_replay_cb(rocprofiler_callback_tracing_record_t record, rocprofiler_user_
     {
         p->replay_pass_count = replay_pass_count;
         g_target_kernel      = p->dispatch_info.kernel_id;
+        return;
     }
+
+    if(record.operation == ROCPROFILER_KERNEL_REPLAY_PASS &&
+       record.phase == ROCPROFILER_CALLBACK_PHASE_ENTER)
+        tl_pass = p->current_pass;
+}
+
+void
+counter_dispatch_cb(rocprofiler_dispatch_counting_service_data_t d,
+                    rocprofiler_counter_config_id_t*             config,
+                    rocprofiler_user_data_t*,
+                    void*)
+{
+    if(d.dispatch_info.kernel_id != g_target_kernel || tl_pass == kSpmPass)
+    {
+        *config = rocprofiler_counter_config_id_t{.handle = 0};
+        return;
+    }
+    *config = sq_waves_config(d.dispatch_info.agent_id);
+}
+
+void
+counter_record_cb(rocprofiler_dispatch_counting_service_data_t d,
+                  rocprofiler_counter_record_t*,
+                  size_t,
+                  rocprofiler_user_data_t,
+                  void*)
+{
+    if(d.dispatch_info.kernel_id == g_target_kernel) g_counter_records.fetch_add(1);
 }
 
 void
@@ -51,7 +86,7 @@ spm_dispatch_cb(const rocprofiler_spm_dispatch_counting_service_data_t* data,
                 rocprofiler_user_data_t*,
                 void*)
 {
-    if(!data || data->dispatch_info.kernel_id != g_target_kernel)
+    if(!data || data->dispatch_info.kernel_id != g_target_kernel || tl_pass != kSpmPass)
     {
         *config = rocprofiler_counter_config_id_t{.handle = 0};
         return;
@@ -133,6 +168,11 @@ tool_init(rocprofiler_client_finalize_t, void*)
                                                        kernel_replay_cb,
                                                        nullptr));
 
+    KR_CHECK(rocprofiler_create_context(&g_counters_ctx));
+    KR_CHECK(rocprofiler_configure_callback_dispatch_counting_service(
+        g_counters_ctx, counter_dispatch_cb, nullptr, counter_record_cb, nullptr));
+    KR_CHECK(rocprofiler_start_context(g_counters_ctx));
+
     KR_CHECK(rocprofiler_create_context(&g_spm_ctx));
     if(rocprofiler_spm_configure_callback_dispatch_service(
            g_spm_ctx, spm_dispatch_cb, nullptr, spm_record_cb, nullptr) !=
@@ -149,12 +189,11 @@ tool_init(rocprofiler_client_finalize_t, void*)
 void
 tool_fini(void*)
 {
-    // SPM collects on every replay pass, so the target dispatch ends once per pass.
     fprintf(stderr,
-            "[spm] spm_records=%d (expected %lu)\n",
-            g_spm_records.load(),
-            static_cast<unsigned long>(kPasses));
-    if(g_spm_records.load() != static_cast<int>(kPasses)) std::abort();
+            "[spm] counter_records=%d spm_records=%d\n",
+            g_counter_records.load(),
+            g_spm_records.load());
+    if(g_counter_records.load() != 1 || g_spm_records.load() == 0) std::abort();
 }
 }  // namespace
 
