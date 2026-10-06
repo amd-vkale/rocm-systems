@@ -1079,9 +1079,12 @@ WriteInterceptor(const void* packets,
 
             // Save this agent's tracked device allocations so every pass runs against identical
             // inputs. Prefer GPU-local backing from this agent's pool, with host memory as the
-            // allocation-pressure fallback.
-            const auto snapshot =
-                kernel_replay::memory_snapshot::snap(replay_agent, queue.get_agent().gpu_pool());
+            // allocation-pressure fallback. GPU-local regions only get their backing here; the
+            // first pass copies them all in one blit (memory_snapshot::capture).
+            auto snapshot = kernel_replay::memory_snapshot::snap(
+                replay_agent,
+                queue.get_agent().gpu_pool(),
+                kernel_replay::memory_snapshot::capture_mode::deferred);
 
             // Snapshot incomplete: restoring a partial snapshot between passes would corrupt
             // application data, so decline replay. Close the CONFIG sequence, free our drain
@@ -1155,7 +1158,25 @@ WriteInterceptor(const void* packets,
 
                 if(pass == 0)
                 {
-                    submit_and_drain_pass();
+                    // Capture the GPU-local regions with one blit queued directly ahead of the
+                    // first pass, under the inventory read lock like the restores below, instead of
+                    // one synchronous copy per region. If the blit cannot be created nothing has
+                    // reached the queue yet, so the same copies are made synchronously instead.
+                    const auto capture_then_run = [&](const auto& regions) {
+                        if(kernel_replay::blit::copy(queue, writer, regions, restore_packets) !=
+                           HSA_STATUS_SUCCESS)
+                        {
+                            auto status = kernel_replay::memory_snapshot::copy_regions(regions);
+                            if(status != HSA_STATUS_SUCCESS) return status;
+                        }
+
+                        submit_and_drain_pass();
+                        return HSA_STATUS_SUCCESS;
+                    };
+                    ROCP_FATAL_IF(
+                        !kernel_replay::memory_snapshot::capture(snapshot, capture_then_run))
+                        << "kernel replay: snapshot capture failed ahead of the first pass. "
+                           "Aborting rather than replaying from an incomplete snapshot";
                 }
                 else
                 {

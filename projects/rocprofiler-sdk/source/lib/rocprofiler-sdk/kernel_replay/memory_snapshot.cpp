@@ -33,7 +33,9 @@
 #include <fmt/format.h>
 #include <hsa/hsa.h>
 
+#include <algorithm>
 #include <cstdint>
+#include <iterator>
 #include <new>
 #include <optional>
 #include <string_view>
@@ -270,6 +272,7 @@ mem_block_t::mem_block_t(mem_block_t&& rhs) noexcept
 , copy_size{std::exchange(rhs.copy_size, 0)}
 , host_copy{std::move(rhs.host_copy)}
 , from_tracker{std::exchange(rhs.from_tracker, false)}
+, captured{std::exchange(rhs.captured, true)}
 {}
 
 mem_block_t&
@@ -288,7 +291,7 @@ snap(hsa_agent_t agent)
 }
 
 device_snapshot_t
-snap(hsa_agent_t agent, hsa_amd_memory_pool_t gpu_pool)
+snap(hsa_agent_t agent, hsa_amd_memory_pool_t gpu_pool, capture_mode mode)
 {
     device_snapshot_t out{};
 
@@ -375,6 +378,14 @@ snap(hsa_agent_t agent, hsa_amd_memory_pool_t gpu_pool)
         auto* snapshot_addr =
             blk.device_copy ? blk.device_copy : static_cast<void*>(blk.host_copy.data());
 
+        // Deferred: the copy is batched into capture(), which re-checks liveness itself.
+        if(blk.device_copy && mode == capture_mode::deferred)
+        {
+            blk.captured = false;
+            out.blocks.push_back(std::move(blk));
+            return true;
+        }
+
         // snap_inventory() released the tracker lock before returning. A host thread calling
         // hsa_amd_memory_pool_free / hsa_memory_free can retire this allocation while we
         // read it, because the alloc/free wrappers are not covered by the per-agent replay lock.
@@ -431,8 +442,9 @@ snap(hsa_agent_t agent, hsa_amd_memory_pool_t gpu_pool)
         }
     }
 
-    ROCP_INFO << fmt::format("kernel-replay snapshot: captured {} regions ({} GPU-local, {} host) "
+    ROCP_INFO << fmt::format("kernel-replay snapshot: {} {} regions ({} GPU-local, {} host) "
                              "for agent {}",
+                             (mode == capture_mode::deferred) ? "prepared" : "captured",
                              out.blocks.size(),
                              device_backed,
                              host_backed,
@@ -441,8 +453,82 @@ snap(hsa_agent_t agent, hsa_amd_memory_pool_t gpu_pool)
 }
 
 bool
+has_pending_capture(const device_snapshot_t& snapshot)
+{
+    return std::any_of(snapshot.blocks.begin(), snapshot.blocks.end(), [](const auto& blk) {
+        return !blk.captured;
+    });
+}
+
+hsa_status_t
+copy_regions(const std::vector<blit::copy_region_t>& regions)
+{
+    for(const auto& region : regions)
+    {
+        const auto status = dma_copy(region.dst, region.src, region.size);
+        if(status != HSA_STATUS_SUCCESS) return status;
+    }
+    return HSA_STATUS_SUCCESS;
+}
+
+bool
+capture(device_snapshot_t& snapshot, const batch_copy_fn_t& submit)
+{
+    size_t dropped = 0;
+    size_t pending = 0;
+
+    const auto status = memory_tracker::inventory().rlock([&](const auto& map) {
+        // The same liveness rule restore() applies: a tracked region freed or shrunk since snap()
+        // cannot be read now and could not be restored later, so it leaves the snapshot.
+        auto& blocks = snapshot.blocks;
+        auto  gone   = std::remove_if(blocks.begin(), blocks.end(), [&](const mem_block_t& blk) {
+            if(blk.captured || !blk.from_tracker) return false;
+            auto itr = map.find(blk.gpu_addr);
+            return itr == map.end() || itr->second.size < blk.copy_size;
+        });
+        dropped      = static_cast<size_t>(std::distance(gone, blocks.end()));
+        blocks.erase(gone, blocks.end());
+
+        auto regions = std::vector<blit::copy_region_t>{};
+        for(const auto& blk : blocks)
+        {
+            if(!blk.captured)
+                regions.emplace_back(
+                    blit::copy_region_t{blk.device_copy, blk.gpu_addr, blk.copy_size});
+        }
+        pending = regions.size();
+
+        auto copy_status = submit(regions);
+        if(copy_status != HSA_STATUS_SUCCESS) return copy_status;
+
+        for(auto& blk : blocks)
+            blk.captured = true;
+        return HSA_STATUS_SUCCESS;
+    });
+
+    if(status != HSA_STATUS_SUCCESS)
+    {
+        ROCP_ERROR << fmt::format("kernel-replay snapshot: batched capture of {} regions failed",
+                                  pending);
+        return false;
+    }
+
+    ROCP_INFO << fmt::format("kernel-replay snapshot: captured {} GPU-local regions in one batch "
+                             "({} retired since snap)",
+                             pending,
+                             dropped);
+    return true;
+}
+
+bool
 restore(const device_snapshot_t& snapshot)
 {
+    if(has_pending_capture(snapshot))
+    {
+        ROCP_ERROR << "kernel-replay restore: snapshot still has regions waiting for capture()";
+        return false;
+    }
+
     size_t restored = 0;
     for(const auto& blk : snapshot.blocks)
     {
@@ -499,6 +585,12 @@ restore(const device_snapshot_t& snapshot)
 bool
 restore(const device_snapshot_t& snapshot, const batch_copy_fn_t& batch_copy)
 {
+    if(has_pending_capture(snapshot))
+    {
+        ROCP_ERROR << "kernel-replay restore: snapshot still has regions waiting for capture()";
+        return false;
+    }
+
     std::vector<blit::copy_region_t> device_regions;
     device_regions.reserve(snapshot.blocks.size());
     size_t restored = 0;

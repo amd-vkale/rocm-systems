@@ -63,6 +63,8 @@ struct mem_block_t
     // false = module-scope variable in a loaded executable; always live, so restore
     // unconditionally.
     bool from_tracker = false;
+    // false = backing is allocated but holds nothing yet; capture() fills it (deferred snap).
+    bool captured = true;
 
     const void* saved_data() const
     {
@@ -92,18 +94,43 @@ struct device_snapshot_t
 device_snapshot_t
 snap(hsa_agent_t agent);
 
+// When snap() copies GPU-local regions.
+enum class capture_mode
+{
+    immediate,  // every region is copied inside snap()
+    deferred,   // GPU-local regions get their backing in snap() and are copied by capture()
+};
+
 // Prefer GPU-local snapshot backing from `gpu_pool`. A region falls back to host memory when its
 // GPU-local allocation cannot be created. Internal allocations bypass the tracker, so a snapshot
-// never captures its own backing.
+// never captures its own backing. Host-backed regions are always copied inside snap().
 device_snapshot_t
-snap(hsa_agent_t agent, hsa_amd_memory_pool_t gpu_pool);
+snap(hsa_agent_t           agent,
+     hsa_amd_memory_pool_t gpu_pool,
+     capture_mode          mode = capture_mode::immediate);
+
+using batch_copy_fn_t = std::function<hsa_status_t(const std::vector<blit::copy_region_t>&)>;
+
+// True when a deferred snap() left GPU-local blocks for capture() to copy.
+bool
+has_pending_capture(const device_snapshot_t& snapshot);
+
+// Copy every block a deferred snap() left pending into its backing, as one batch: `submit` gets
+// the live->backing copies of the pending blocks that are still allocated. It runs under the
+// allocation inventory's read lock, so a concurrent free cannot retire a region mid-copy, and it
+// must not return before the copies have completed. Pending blocks freed since snap() are dropped
+// from the snapshot. Returns false when `submit` fails; the snapshot must then not be restored.
+bool
+capture(device_snapshot_t& snapshot, const batch_copy_fn_t& submit);
+
+// Synchronous copy of each region, for a batch the blit could not take.
+hsa_status_t
+copy_regions(const std::vector<blit::copy_region_t>& regions);
 
 // Copy each saved region back to its live device allocation. A region freed after snap is skipped.
 // A failed copy returns false immediately because the snapshot is then only partially applied.
 bool
 restore(const device_snapshot_t& snapshot);
-
-using batch_copy_fn_t = std::function<hsa_status_t(const std::vector<blit::copy_region_t>&)>;
 
 // Restore GPU-local blocks through a batch copy callback. Host-backed fallback blocks retain the
 // synchronous ROCr path.
