@@ -187,9 +187,11 @@ on MI2xx/MI3xx when both would run on the **same** replay pass (clock gating). A
 safely share one pass because both inject AQL instrumentation. Use separate passes and separate
 contexts — locally stop one service before starting another — for services that **consult** the
 override map at dispatch time (dispatch counters, SPM, kernel dispatch tracing, and dispatch thread
-trace). PC sampling and device counting are agent-wide today and **ignore** localized toggles, so
-they keep collecting on every pass even when a tool records a local stop. Do not combine dispatch
-counter collection with PC sampling under replay until PC sampling honors localized overrides.
+trace). PC sampling is agent-wide: a local stop drops the samples of that pass's dispatch, so a
+replayed dispatch's samples come only from the passes that kept PC sampling on, and the replay
+window's own capture and restore blits are never sampled. Its hardware still samples every pass,
+so do not combine dispatch counter collection with PC sampling under replay on MI2xx/MI3xx. Device
+counting is agent-wide and **ignores** localized toggles.
 
 See
 [Concurrency and isolation](kernel_replay_concurrency_and_isolation.md#localized-context-control-and-thread-scope)

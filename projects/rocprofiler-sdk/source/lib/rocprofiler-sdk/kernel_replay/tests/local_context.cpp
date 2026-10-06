@@ -220,8 +220,8 @@ TEST(kernel_replay_local_context, last_write_wins_in_arm_window)
 
 // Per-service consumer models used at dispatch time. Dispatch counters and SPM AND the override
 // with the global enabled flag (local start cannot promote a globally stopped context); ATT skips
-// only when forced off; PC sampling is agent-wide and ignores the override (a local stop is a
-// recorded no-op).
+// only when forced off; PC sampling is agent-wide and keeps sampling, but the dispatch marker drops
+// the samples of a pass that stopped it.
 TEST(kernel_replay_local_context, simulated_service_consumers)
 {
     const rocprofiler_context_id_t counters{10};

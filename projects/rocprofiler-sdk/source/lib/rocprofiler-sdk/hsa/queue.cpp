@@ -865,9 +865,15 @@ WriteInterceptor(const void* packets,
 #if ROCPROFILER_SDK_HSA_PC_SAMPLING > 0
             if(pc_sampling::is_pc_sample_service_configured(queue.get_agent().get_rocp_agent()->id))
             {
+                // A kernel replay pass that has locally stopped PC sampling still runs on a
+                // sampled agent; its samples are dropped so each dispatch is sampled once, on the
+                // pass the tool chose.
                 transformed_packets.emplace_back(
                     pc_sampling::hsa::generate_marker_packet_for_kernel(
-                        corr_id, _packet_data.tracing_data.external_correlation_ids, dispatch_id));
+                        corr_id,
+                        _packet_data.tracing_data.external_correlation_ids,
+                        dispatch_id,
+                        is_replay_pass && pc_sampling::hsa::pc_sampling_locally_stopped()));
             }
 #endif
 
@@ -1119,6 +1125,21 @@ WriteInterceptor(const void* packets,
 
             auto restore_packets = std::vector<kernel_replay::blit::packet_info>{};
 
+            // The capture and restore blits run on the application's queue. On a PC-sampled agent
+            // their samples would be attributed to whichever dispatch last used the ring slot, so
+            // each blit is preceded by a marker that has them dropped.
+            const auto submit_blit = [&](const auto& regions) {
+#if ROCPROFILER_SDK_HSA_PC_SAMPLING > 0
+                if(!regions.empty() && pc_sampling::is_pc_sample_service_configured(
+                                           queue.get_agent().get_rocp_agent()->id))
+                {
+                    const auto marker = pc_sampling::hsa::generate_suppressed_marker_packet();
+                    writer(&marker, 1);
+                }
+#endif
+                return kernel_replay::blit::copy(queue, writer, regions, restore_packets);
+            };
+
             auto submit_and_drain_pass = [&]() {
                 process_packet_batch(packets_arr,
                                      1,
@@ -1163,8 +1184,7 @@ WriteInterceptor(const void* packets,
                     // one synchronous copy per region. If the blit cannot be created nothing has
                     // reached the queue yet, so the same copies are made synchronously instead.
                     const auto capture_then_run = [&](const auto& regions) {
-                        if(kernel_replay::blit::copy(queue, writer, regions, restore_packets) !=
-                           HSA_STATUS_SUCCESS)
+                        if(submit_blit(regions) != HSA_STATUS_SUCCESS)
                         {
                             auto status = kernel_replay::memory_snapshot::copy_regions(regions);
                             if(status != HSA_STATUS_SUCCESS) return status;
@@ -1184,8 +1204,7 @@ WriteInterceptor(const void* packets,
                     // read lock. Submit the target directly behind the blit and drain it before
                     // returning, so the lock remains held until both packets complete.
                     const auto batch_copy = [&](const auto& regions) {
-                        auto status =
-                            kernel_replay::blit::copy(queue, writer, regions, restore_packets);
+                        auto status = submit_blit(regions);
                         if(status != HSA_STATUS_SUCCESS) return status;
 
                         submit_and_drain_pass();

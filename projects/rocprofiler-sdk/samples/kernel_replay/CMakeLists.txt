@@ -51,10 +51,11 @@ endif()
 find_package_handle_standard_args(attdecoder REQUIRED_VARS attdecoder_LIB_DIR
                                                            attdecoder_LIBRARY)
 
-# PC sampling is agent-wide and does not consult localized pass overrides yet. Samples
-# that assign counters and PC sampling to different replay passes still run both on every
-# pass and can hit the MI2xx/MI3xx clock-gating conflict. Keep those ctests disabled until
-# the service honors local_context_override() at collection time.
+# PC sampling drops the samples of a pass that locally stopped it, but its hardware stays
+# armed for the whole run. Samples that assign counters and PC sampling to different
+# replay passes still run both on every pass and can hit the MI2xx/MI3xx clock-gating
+# conflict, so their ctests stay disabled; tests/kernel-replay-pc-sampling covers PC
+# sampling on selected passes without counters.
 set(KR_PC_SAMPLING_PASS_PARTITION_UNSUPPORTED ON)
 
 function(add_kernel_replay_sample NAME CLIENT_SRC)

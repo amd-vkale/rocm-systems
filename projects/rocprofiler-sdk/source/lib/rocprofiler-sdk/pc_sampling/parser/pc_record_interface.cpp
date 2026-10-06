@@ -182,6 +182,13 @@ PCSamplingParserContext::shouldFlipRocrBuffer(const dispatch_pkt_id_t& pkt) cons
 }
 
 template <typename PcSamplingRecordKindT>
+inline bool
+is_suppressed(const PcSamplingRecordKindT& sample)
+{
+    return sample.correlation_id.internal == Parser::suppressed_internal_correlation_id;
+}
+
+template <typename PcSamplingRecordKindT>
 inline void
 emplace_records_in_buffer(rocprofiler::buffer::instance*        buff,
                           const PcSamplingRecordKindT*          samples,
@@ -189,7 +196,10 @@ emplace_records_in_buffer(rocprofiler::buffer::instance*        buff,
                           rocprofiler_pc_sampling_record_kind_t record_kind)
 {
     for(size_t i = 0; i < num_samples; i++)
+    {
+        if(is_suppressed(samples[i])) continue;
         buff->emplace(ROCPROFILER_BUFFER_CATEGORY_PC_SAMPLING, record_kind, samples[i]);
+    }
 }
 
 template <>
@@ -202,6 +212,7 @@ emplace_records_in_buffer<rocprofiler_pc_sampling_record_stochastic_v0_t>(
 {
     for(size_t i = 0; i < num_samples; i++)
     {
+        if(is_suppressed(samples[i])) continue;
         if(samples[i].size == 0)
         {
             // `size == 0` internally means invalid sample, so generate it.

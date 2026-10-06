@@ -168,8 +168,10 @@ Localized context control
 During ``PASS`` ``PHASE_ENTER`` the payload carries ``replay_start_context`` /
 ``replay_stop_context``. Use them to enable or disable override-aware contexts for that
 pass (for example counters on selected passes and thread trace once) without calling global
-``rocprofiler_start_context`` / ``rocprofiler_stop_context``. PC sampling is agent-wide and does
-not currently honor these callbacks, so it cannot be isolated to one replay pass.
+``rocprofiler_start_context`` / ``rocprofiler_stop_context``. PC sampling is agent-wide: a local
+stop drops the samples of that pass's dispatch, so it can be limited to one replay pass, but its
+hardware keeps sampling and it still must not share a replay with dispatch counters on MI2xx and
+MI3xx.
 
 Overrides are sticky across passes and scoped to the replay loop. See
 :ref:`kernel-replay-callback-api` for the contract.
