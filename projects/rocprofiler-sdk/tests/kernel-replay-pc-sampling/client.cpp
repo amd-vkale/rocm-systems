@@ -220,7 +220,9 @@ configure_pcs()
            ROCPROFILER_STATUS_SUCCESS)
             any = true;
     }
-    if(any) RC(rocprofiler_start_context(g_pcs_ctx));
+    // PC sampling hardware takes one session per device; another process holding it (another PC
+    // sampling test on the same GPU) makes the start fail, which is unavailability, not a failure.
+    if(any && rocprofiler_start_context(g_pcs_ctx) != ROCPROFILER_STATUS_SUCCESS) return false;
     return any;
 }
 
