@@ -22,6 +22,7 @@
 
 #include "lib/rocprofiler-sdk/kernel_replay/device_backing_pool.hpp"
 
+#include <algorithm>
 #include <iterator>
 #include <limits>
 #include <utility>
@@ -53,11 +54,12 @@ device_backing_pool::acquire(uint64_t pool, uint64_t agent, size_t bytes)
                                    : 2 * bytes;
             if(auto itr = idle.lower_bound(bytes); itr != idle.end() && itr->first <= limit)
             {
-                // Equal capacities sit in release order. Taking the last one keeps reusing the
-                // blocks snapshots still need, so the others stay idle long enough to be trimmed.
-                itr        = std::prev(idle.upper_bound(itr->first));
-                auto block = block_t{itr->second.ptr, itr->first};
-                idle.erase(itr);
+                // Taking the block released last keeps reusing the blocks snapshots still need,
+                // so the others stay idle long enough to be trimmed.
+                auto& blocks = itr->second;
+                auto  block  = block_t{blocks.back().ptr, itr->first};
+                blocks.pop_back();
+                if(blocks.empty()) idle.erase(itr);
                 return block;
             }
         }
@@ -75,7 +77,7 @@ device_backing_pool::release(uint64_t pool, block_t block)
     if(!block.ptr) return;
     auto  _lk   = std::lock_guard<std::mutex>{m_mutex};
     auto& state = m_pools[pool];
-    state.idle.emplace(block.capacity, idle_t{block.ptr, state.epoch});
+    state.idle[block.capacity].push_back(idle_t{block.ptr, state.epoch});
 }
 
 uint64_t
@@ -98,17 +100,18 @@ device_backing_pool::end_snapshot(uint64_t pool, uint64_t token)
         for(auto itr = idle.begin(); itr != idle.end();)
         {
             // Idle since before the previous snapshot of this pool began, and neither that snapshot
-            // nor this one took it.
-            if(itr->second.released + 1 < token)
+            // nor this one took it. Release order puts those blocks first.
+            auto& blocks = itr->second;
+            auto  keep   = std::find_if(blocks.begin(), blocks.end(), [token](const idle_t& block) {
+                return block.released + 1 >= token;
+            });
+            for(auto bitr = blocks.begin(); bitr != keep; ++bitr)
             {
                 freed += itr->first;
-                doomed.emplace_back(itr->second.ptr);
-                itr = idle.erase(itr);
+                doomed.emplace_back(bitr->ptr);
             }
-            else
-            {
-                ++itr;
-            }
+            blocks.erase(blocks.begin(), keep);
+            itr = blocks.empty() ? idle.erase(itr) : std::next(itr);
         }
     }
     for(auto* ptr : doomed)
@@ -125,10 +128,13 @@ device_backing_pool::release_idle()
         auto _lk = std::lock_guard<std::mutex>{m_mutex};
         for(auto& [pool, state] : m_pools)
         {
-            for(auto& [capacity, entry] : state.idle)
+            for(auto& [capacity, blocks] : state.idle)
             {
-                freed += capacity;
-                doomed.emplace_back(entry.ptr);
+                for(const auto& block : blocks)
+                {
+                    freed += capacity;
+                    doomed.emplace_back(block.ptr);
+                }
             }
             state.idle.clear();
         }
@@ -145,8 +151,8 @@ device_backing_pool::idle_bytes(uint64_t pool) const
     auto itr = m_pools.find(pool);
     if(itr == m_pools.end()) return 0;
     auto total = size_t{0};
-    for(const auto& entry : itr->second.idle)
-        total += entry.first;
+    for(const auto& [capacity, blocks] : itr->second.idle)
+        total += capacity * blocks.size();
     return total;
 }
 
@@ -155,7 +161,11 @@ device_backing_pool::idle_blocks(uint64_t pool) const
 {
     auto _lk = std::lock_guard<std::mutex>{m_mutex};
     auto itr = m_pools.find(pool);
-    return (itr == m_pools.end()) ? 0 : itr->second.idle.size();
+    if(itr == m_pools.end()) return 0;
+    auto total = size_t{0};
+    for(const auto& entry : itr->second.idle)
+        total += entry.second.size();
+    return total;
 }
 }  // namespace memory_snapshot
 }  // namespace kernel_replay

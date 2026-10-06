@@ -29,6 +29,7 @@
 #include <mutex>
 #include <optional>
 #include <unordered_map>
+#include <vector>
 
 namespace rocprofiler
 {
@@ -79,10 +80,13 @@ private:
         uint64_t released = 0;  // the pool's epoch when the block went idle
     };
 
+    // A snapshot acquires and releases one block per region, thousands for module variables, so
+    // reuse of a size seen before must not allocate: each capacity keeps its idle blocks in
+    // release order, popped from the back. Capacities with no idle block are erased.
     struct pool_state_t
     {
-        std::multimap<size_t, idle_t> idle  = {};  // capacity -> block
-        uint64_t                      epoch = 0;
+        std::map<size_t, std::vector<idle_t>> idle  = {};
+        uint64_t                              epoch = 0;
     };
 
     allocate_fn_t                              m_allocate = {};
