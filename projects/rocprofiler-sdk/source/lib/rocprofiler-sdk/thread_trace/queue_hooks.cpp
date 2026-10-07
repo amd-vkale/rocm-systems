@@ -79,8 +79,8 @@ kernel_dispatch_phase_exit_hook(const hsa::Queue& /*queue*/,
                                 kernel_dispatch::profiling_time /*dispatch_time*/)
 {
     // Route by packet provenance, not current activeness: post_kernel_call self-filters via
-    // THREAD_TRACE_CLIENT_ID and agent ownership, so in-flight dispatches still complete after
-    // stop_context removes the context from the active list.
+    // THREAD_TRACE_CLIENT_ID and the tracer id pre_kernel_call stamps on the packet, so in-flight
+    // dispatches still complete after stop_context removes the context from the active list.
     auto contexts = context::get_registered_contexts(thread_trace_contexts_filter());
     for(const auto* ctx : contexts)
     {
