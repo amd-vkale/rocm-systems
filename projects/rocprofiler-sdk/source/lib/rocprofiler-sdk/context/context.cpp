@@ -674,11 +674,14 @@ stop_context(rocprofiler_context_id_t idx)
         if(auto* _cv = get_contexts_cv()) _cv->notify_all();
     }};
 
-    // Phase two, unlocked: the service teardowns below call hsa::queue_controller_sync(), an
-    // unbounded wait on in-flight GPU work. Holding get_contexts_mutex() across it stalls every
-    // context lifecycle operation in the process behind one context's dispatches, and it puts the
-    // mutex on the far side of a wait that the completion path has to get through -- so any future
-    // completion-path read that took the mutex would deadlock rather than merely block.
+    // Phase two, unlocked: some of the teardowns below wait on the GPU. spm::stop_context() calls
+    // hsa::queue_controller_sync(), which waits with no limit for the interposition completion
+    // monitor's in-flight batches and then gives each queue's in-flight dispatches one drain
+    // slice, and DeviceThreadTracer::stop_context() waits for every agent's stop packets. Holding
+    // get_contexts_mutex() across those waits stalls every context lifecycle operation in the
+    // process behind one context's dispatches, and it puts the mutex on the far side of a wait
+    // that the completion path has to get through -- so any future completion-path read that took
+    // the mutex would deadlock rather than merely block.
     //
     // The active slot stays populated for the whole phase, which is deliberate:
     // kernel_dispatch_phase_enter_hook has to keep seeing the context so the serialized ->
