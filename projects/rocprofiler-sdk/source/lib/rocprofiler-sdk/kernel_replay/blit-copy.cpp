@@ -22,6 +22,7 @@
 
 #include "lib/rocprofiler-sdk/kernel_replay/blit-copy.hpp"
 
+#include "lib/common/filesystem.hpp"
 #include "lib/common/logging.hpp"
 #include "lib/common/synchronized.hpp"
 #include "lib/rocprofiler-sdk/hsa/agent_cache.hpp"
@@ -31,7 +32,9 @@
 #include "lib/rocprofiler-sdk/kernel_replay/blit-copy-kernel.hpp"
 
 #include <fmt/format.h>
+#include <fmt/ranges.h>
 
+#include <dlfcn.h>
 #include <fcntl.h>
 #include <unistd.h>
 
@@ -93,16 +96,43 @@ states()
     return *value;
 }
 
+std::vector<std::string>
+code_object_directories()
+{
+    namespace fs = common::filesystem;
+
+    auto directories = std::vector<std::string>{};
+    // A relocated install (container, wheel, `cmake --install --prefix`) has the code object only
+    // next to the library that is actually loaded; the configure-time paths do not exist there.
+    if(auto info = Dl_info{};
+       dladdr(reinterpret_cast<const void*>(&code_object_directories), &info) != 0 &&
+       info.dli_fname != nullptr)
+    {
+        auto ec  = std::error_code{};
+        auto lib = fs::canonical(fs::path{info.dli_fname}, ec);
+        if(!ec)
+            directories.emplace_back(
+                (lib.parent_path() / ROCPROFILER_KERNEL_REPLAY_BLIT_RELATIVE_DIR)
+                    .lexically_normal()
+                    .string());
+    }
+    directories.emplace_back(ROCPROFILER_KERNEL_REPLAY_BLIT_BUILD_DIR);
+    directories.emplace_back(ROCPROFILER_KERNEL_REPLAY_BLIT_INSTALL_DIR);
+    return directories;
+}
+
 std::string
 find_code_object(const hsa::AgentCache& agent)
 {
-    const auto filename = fmt::format("{}_kernel_replay_blit.hsaco", agent.name());
-    for(const auto* directory :
-        {ROCPROFILER_KERNEL_REPLAY_BLIT_BUILD_DIR, ROCPROFILER_KERNEL_REPLAY_BLIT_INSTALL_DIR})
+    const auto filename    = fmt::format("{}_kernel_replay_blit.hsaco", agent.name());
+    const auto directories = code_object_directories();
+    for(const auto& directory : directories)
     {
         auto path = fmt::format("{}/{}", directory, filename);
         if(access(path.c_str(), R_OK) == 0) return path;
     }
+    ROCP_ERROR << fmt::format(
+        "kernel replay blit: no code object '{}' in {}", filename, fmt::join(directories, ", "));
     return {};
 }
 
@@ -153,12 +183,7 @@ initialize_state(const hsa::AgentCache& agent, kernel_state_t& state)
     if(!core || !ext || !ext->hsa_amd_signal_create_fn) return HSA_STATUS_ERROR;
 
     const auto path = find_code_object(agent);
-    if(path.empty())
-    {
-        ROCP_ERROR << fmt::format("kernel replay blit: no code object for agent '{}'",
-                                  agent.name());
-        return HSA_STATUS_ERROR;
-    }
+    if(path.empty()) return HSA_STATUS_ERROR;
 
     state.file = open(path.c_str(), O_RDONLY);
     if(state.file < 0) return HSA_STATUS_ERROR;

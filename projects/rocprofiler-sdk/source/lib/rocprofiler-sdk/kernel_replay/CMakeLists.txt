@@ -50,9 +50,13 @@ install(
     DESTINATION ${CMAKE_INSTALL_DATADIR}/rocprofiler-sdk/kernel-replay
     COMPONENT core)
 
+file(RELATIVE_PATH kernel_replay_blit_relative_dir "${CMAKE_INSTALL_FULL_LIBDIR}"
+     "${CMAKE_INSTALL_FULL_DATADIR}/rocprofiler-sdk/kernel-replay")
+
 target_compile_definitions(
     rocprofiler-sdk-object-library
     PRIVATE
+        ROCPROFILER_KERNEL_REPLAY_BLIT_RELATIVE_DIR="${kernel_replay_blit_relative_dir}"
         ROCPROFILER_KERNEL_REPLAY_BLIT_BUILD_DIR="${CMAKE_CURRENT_BINARY_DIR}"
         ROCPROFILER_KERNEL_REPLAY_BLIT_INSTALL_DIR="${CMAKE_INSTALL_FULL_DATADIR}/rocprofiler-sdk/kernel-replay"
     )
