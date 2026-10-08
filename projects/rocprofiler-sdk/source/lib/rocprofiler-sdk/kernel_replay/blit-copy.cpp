@@ -45,6 +45,7 @@
 #include <cstdint>
 #include <cstring>
 #include <limits>
+#include <optional>
 #include <string>
 #include <unordered_map>
 #include <vector>
@@ -216,20 +217,25 @@ initialize_state(const hsa::AgentCache& agent, kernel_state_t& state)
 kernel_state_t*
 get_state(const hsa::AgentCache& agent)
 {
-    auto* state = states().rlock([&](const auto& map) -> kernel_state_t* {
-        auto itr = map.find(agent.get_hsa_agent().handle);
-        return (itr == map.end()) ? nullptr : itr->second;
+    const auto handle = agent.get_hsa_agent().handle;
+    auto       cached = states().rlock([&](const auto& map) -> std::optional<kernel_state_t*> {
+        auto itr = map.find(handle);
+        if(itr == map.end()) return std::nullopt;
+        return itr->second;
     });
-    if(state) return state;
+    if(cached) return *cached;
 
+    // A null entry records a failed initialization: later dispatches fall back right away instead
+    // of searching for, loading and logging the missing code object again on every dispatch.
     return states().wlock([&](auto& map) -> kernel_state_t* {
-        auto& slot = map[agent.get_hsa_agent().handle];
-        if(slot) return slot;
+        if(auto itr = map.find(handle); itr != map.end()) return itr->second;
 
-        auto candidate = std::make_unique<kernel_state_t>();
-        if(initialize_state(agent, *candidate) != HSA_STATUS_SUCCESS) return nullptr;
-        slot = candidate.release();
-        return slot;
+        auto  candidate = std::make_unique<kernel_state_t>();
+        auto* state     = (initialize_state(agent, *candidate) == HSA_STATUS_SUCCESS)
+                              ? candidate.release()
+                              : nullptr;
+        map.emplace(handle, state);
+        return state;
     });
 }
 }  // namespace
