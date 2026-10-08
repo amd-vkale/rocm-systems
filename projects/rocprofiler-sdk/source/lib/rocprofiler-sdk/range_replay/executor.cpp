@@ -29,6 +29,7 @@
 #include "lib/rocprofiler-sdk/hsa/queue.hpp"
 #include "lib/rocprofiler-sdk/hsa/replay_window.hpp"
 #include "lib/rocprofiler-sdk/hsa/rocprofiler_packet.hpp"
+#include "lib/rocprofiler-sdk/kernel_replay/copy_fence.hpp"
 #include "lib/rocprofiler-sdk/kernel_replay/local_context.hpp"
 #include "lib/rocprofiler-sdk/kernel_replay/memory_snapshot.hpp"
 #include "lib/rocprofiler-sdk/kernel_replay/memory_tracker.hpp"
@@ -308,9 +309,21 @@ ensure_entry_snapshot(range_context_t&                      ctx,
     }
 
     hsa::replay_drain_agent_or_fatal(ctx.hsa_agent);
+
+    // Async copies are not in the queues drained above; one in flight now would be captured
+    // half-written. Copies may run again during the application's own execution of the range.
+    if(!kernel_replay::copy_fence::open_window(ctx.hsa_agent, std::chrono::seconds{5}))
+    {
+        LOG_FIRST_N(WARNING, 1) << "range replay: async copies on this agent did not complete "
+                                   "within 5 s of the range entry; the range will not be replayed";
+        ctx.snapshot_taken = true;
+        ctx.record.decline(ROCPROFILER_RANGE_REPLAY_STATUS_MEMORY_COPY_IN_RANGE);
+        return;
+    }
     const auto drained_at = phase_clock::now();
 
-    ctx.snapshot          = kernel_replay::memory_snapshot::snap(ctx.hsa_agent);
+    ctx.snapshot = kernel_replay::memory_snapshot::snap(ctx.hsa_agent);
+    kernel_replay::copy_fence::close_window(ctx.hsa_agent);
     ctx.snapshot_taken    = true;
     const auto snapped_at = phase_clock::now();
 
@@ -360,6 +373,15 @@ execute_range(range_context_t& ctx, uint64_t& divergence_count)
     // its GPU tail may not be. Drain before touching device memory.
     hsa::replay_drain_or_fatal(queue);
     hsa::replay_drain_agent_or_fatal(ctx.hsa_agent);
+
+    // From the exit snapshot to the final restore, no async copy may run on this agent: one in
+    // flight at the exit snapshot would be captured half-written and the final restore would write
+    // that back over the bytes it delivered, and one running during the passes would race the
+    // restores.
+    if(!kernel_replay::copy_fence::open_window(ctx.hsa_agent, std::chrono::seconds{5}))
+        return ROCPROFILER_RANGE_REPLAY_STATUS_MEMORY_COPY_IN_RANGE;
+    const auto _copy_fence = common::scope_destructor{
+        [&ctx]() { kernel_replay::copy_fence::close_window(ctx.hsa_agent); }};
     const auto drained_at = phase_clock::now();
 
     // Every region the entry snapshot covers must still be the same allocation, or restoring it

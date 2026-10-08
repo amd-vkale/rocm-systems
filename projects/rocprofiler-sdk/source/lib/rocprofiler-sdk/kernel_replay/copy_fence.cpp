@@ -53,7 +53,8 @@ struct fence_t
     std::mutex              mtx       = {};
     std::condition_variable cv        = {};
     int64_t                 in_flight = 0;
-    bool                    window    = false;
+    // A count, not a flag: windows can overlap on one agent (ranges open on two threads).
+    int64_t windows = 0;
 };
 
 using fence_map_t = std::unordered_map<uint64_t, std::unique_ptr<fence_t>>;
@@ -94,7 +95,7 @@ enter(const agents_t& agents)
     {
         auto& _f  = fence_of(agents.handles[i]);
         auto  _lk = std::unique_lock<std::mutex>{_f.mtx};
-        _f.cv.wait(_lk, [&_f]() { return !_f.window; });
+        _f.cv.wait(_lk, [&_f]() { return _f.windows == 0; });
         ++_f.in_flight;
     }
 }
@@ -292,9 +293,9 @@ open_window(hsa_agent_t agent, std::chrono::milliseconds timeout)
 {
     auto& _f  = fence_of(agent.handle);
     auto  _lk = std::unique_lock<std::mutex>{_f.mtx};
-    _f.window = true;
+    ++_f.windows;
     if(_f.cv.wait_for(_lk, timeout, [&_f]() { return _f.in_flight == 0; })) return true;
-    _f.window = false;
+    --_f.windows;
     _lk.unlock();
     _f.cv.notify_all();
     return false;
@@ -305,8 +306,8 @@ close_window(hsa_agent_t agent)
 {
     auto& _f = fence_of(agent.handle);
     {
-        auto _lk  = std::lock_guard<std::mutex>{_f.mtx};
-        _f.window = false;
+        auto _lk = std::lock_guard<std::mutex>{_f.mtx};
+        --_f.windows;
     }
     _f.cv.notify_all();
 }

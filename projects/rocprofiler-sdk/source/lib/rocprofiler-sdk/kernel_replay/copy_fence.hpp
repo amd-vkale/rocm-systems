@@ -34,7 +34,7 @@ namespace rocprofiler
 namespace kernel_replay
 {
 // Fences async copies (hsa_amd_memory_async_copy, _on_engine and _rect; HIP issues
-// hipMemcpyAsync through them) against kernel-replay windows.
+// hipMemcpyAsync through them) against kernel-replay windows and range-replay snapshots.
 //
 // The replay window drains the agent's AQL queues before it snapshots, but async copies run on
 // SDMA engines, or on ROCr's internal blit queues, which neither that drain nor the per-agent
