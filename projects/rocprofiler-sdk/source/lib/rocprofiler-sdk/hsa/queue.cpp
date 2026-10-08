@@ -1074,8 +1074,9 @@ WriteInterceptor(const void* packets,
             const auto gpu_backend_available =
                 kernel_replay::blit::prepare(queue) == HSA_STATUS_SUCCESS;
             if(!gpu_backend_available)
-                ROCP_WARNING << "kernel replay: internal blit kernel unavailable; trying "
-                                "pinned-host snapshot backing";
+                LOG_FIRST_N(WARNING, 1) << "kernel replay: internal blit kernel unavailable; "
+                                           "trying pinned-host snapshot backing, which makes "
+                                           "replay slower";
 
             // Save this agent's tracked device allocations so every pass runs against identical
             // inputs. Plan whole-region placement against GPU then pinned-host budgets and
