@@ -53,8 +53,8 @@ rocprofiler_add_integration_execute_test(
         --pmc SQ_WAVES SQ_INSTS_VALU GRBM_GUI_ACTIVE --pmc SQ_WAVES SQ_INSTS_VALU
         SQ_INSTS_SALU --pmc SQ_WAVES SQ_INSTS_VALU SQ_INSTS_SMEM --pmc SQ_WAVES
         SQ_INSTS_VALU SQ_INSTS_LDS --replay-mode kernel --kernel-replay-beta-enabled
-        --output-format csv json -d ${CMAKE_CURRENT_BINARY_DIR}/kernel-replay -o out --
-        $<TARGET_FILE:kernel-replay> 1048576 1
+        --output-format csv json rocpd -d ${CMAKE_CURRENT_BINARY_DIR}/kernel-replay -o out
+        -- $<TARGET_FILE:kernel-replay> 1048576 1
     DEPENDS kernel-replay
     TIMEOUT 120
     LABELS "kernel-replay"
@@ -71,8 +71,16 @@ rocprofiler_add_integration_validate_test(
     rocprofv3-test-kernel-replay-validate BUNDLE_TESTS
     TEST_PATHS validate.py
     COPY conftest.py
-    ARGS --json-input ${CMAKE_CURRENT_BINARY_DIR}/kernel-replay/out_results.json --passes
-         ${REPLAY_PASSES} --common-counters SQ_WAVES SQ_INSTS_VALU
+    ARGS --json-input
+         ${CMAKE_CURRENT_BINARY_DIR}/kernel-replay/out_results.json
+         --passes
+         ${REPLAY_PASSES}
+         --common-counters
+         SQ_WAVES
+         SQ_INSTS_VALU
+         --rocpd-input
+         ${CMAKE_CURRENT_BINARY_DIR}/kernel-replay/out_results.db
+         -x
     TIMEOUT 120
     LABELS "kernel-replay"
     PYTHON_PATH
@@ -90,8 +98,9 @@ rocprofiler_add_integration_execute_test(
         --pmc SQ_WAVES SQ_INSTS_VALU GRBM_GUI_ACTIVE --pmc SQ_WAVES SQ_INSTS_VALU
         SQ_INSTS_SALU --pmc SQ_WAVES SQ_INSTS_VALU SQ_INSTS_SMEM --pmc SQ_WAVES
         SQ_INSTS_VALU SQ_INSTS_LDS --replay-mode kernel --kernel-replay-beta-enabled
-        --output-format csv json -d ${CMAKE_CURRENT_BINARY_DIR}/kernel-replay-interval -o
-        out -- $<TARGET_FILE:kernel-replay> 1048576 1
+        --output-format csv json rocpd -d
+        ${CMAKE_CURRENT_BINARY_DIR}/kernel-replay-interval -o out --
+        $<TARGET_FILE:kernel-replay> 1048576 1
     DEPENDS kernel-replay
     TIMEOUT 120
     LABELS "kernel-replay"
@@ -102,8 +111,16 @@ rocprofiler_add_integration_validate_test(
     rocprofv3-test-kernel-replay-interval-validate BUNDLE_TESTS
     TEST_PATHS validate.py
     COPY conftest.py
-    ARGS --json-input ${CMAKE_CURRENT_BINARY_DIR}/kernel-replay-interval/out_results.json
-         --passes ${REPLAY_PASSES} --common-counters SQ_WAVES SQ_INSTS_VALU
+    ARGS --json-input
+         ${CMAKE_CURRENT_BINARY_DIR}/kernel-replay-interval/out_results.json
+         --passes
+         ${REPLAY_PASSES}
+         --common-counters
+         SQ_WAVES
+         SQ_INSTS_VALU
+         --rocpd-input
+         ${CMAKE_CURRENT_BINARY_DIR}/kernel-replay-interval/out_results.db
+         -x
     TIMEOUT 120
     LABELS "kernel-replay"
     PYTHON_PATH
