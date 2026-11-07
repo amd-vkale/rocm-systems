@@ -20,6 +20,8 @@ XSBench and RSBench, and adds host range replay from
   - Host mode replays the same range once libomptarget's caching memory manager is disabled
     (`LIBOMPTARGET_MEMORY_MANAGER_THRESHOLD=0`). With the memory manager on, it declines
     `ALLOCATION_CHANGED_IN_RANGE`.
+  - The two modes need opposite settings: with the memory manager off, packet replay declines the
+    same range.
   - A range around the whole simulation, including its `map` copies and host reduction, can only
     be host-replayed. It replays with divergence 0 once the OpenMP image is warmed up before the
     range.
