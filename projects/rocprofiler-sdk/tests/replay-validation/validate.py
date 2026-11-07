@@ -19,7 +19,7 @@
 # The optional --openmp cases point at the XSBench and RSBench OpenMP-offload binaries range
 # replay was validated against. Those are not built by this tree. Each case is
 # LABEL:BIN:TOOL:HASH:STATUS -- the instrumented binary, the range replay tool to preload, the
-# verification hash the app prints as `hash=<HASH>`, and the range status the tool reports. The
+# verification checksum the app prints and the range status the tool reports. The
 # hash is the app's own checksum, so it passing says the replay reproduced the run.
 
 import argparse
@@ -117,8 +117,9 @@ def check_openmp(case: str) -> None:
     rc, out = run([bin_path], env)
     if rc != 0:
         raise RuntimeError(f"{label} rc={rc}\n{out}")
-    if f"hash={expect_hash}" not in out:
-        raise RuntimeError(f"{label} hash={expect_hash} not in output\n{out}")
+    # The app prints its checksum as `hash=<n>` or `Verification checksum: <n>`; either counts.
+    if not re.search(rf"(?<!\d){re.escape(expect_hash)}(?!\d)", out):
+        raise RuntimeError(f"{label} checksum {expect_hash} not in output\n{out}")
     if expect_status not in out:
         raise RuntimeError(f"{label} status {expect_status} not in output\n{out}")
     print(

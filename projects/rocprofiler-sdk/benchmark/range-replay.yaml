@@ -14,8 +14,8 @@
 # ballast_mb, dispatches per range, ranges, and warmup. ballast_mb is the device memory held live
 # across the range, which is the snapshot footprint.
 #
-# Range replay is not a rocprofv3 mode. The tool that arms it is the perf client, preloaded by the
-# job environment, and rocprofv3 only collects counters on top. So the baseline mode (no rocprofv3)
+# Range replay is not a rocprofv3 mode. The tool that arms it is the perf client, named by
+# ROCP_TOOL_LIBRARIES in the job environment, and rocprofv3 only collects counters on top. So the baseline mode (no rocprofv3)
 # still replays -- it is the replay overhead on its own -- and the other modes add counter
 # collection. counters_1 and counters_4 are named, so --filter-rocprofv3 selects one of them.
 #
@@ -52,8 +52,11 @@ defaults:
   group:
     - range-replay
 
+  # ROCP_TOOL_LIBRARIES rather than LD_PRELOAD: rocprofv3 appends its own tool library to
+  # ROCP_TOOL_LIBRARIES, so the range replay client and rocprofv3's counter collection both load.
+  # A preloaded client is not configured once rocprofv3 has set that variable.
   environment: &range_env
-    LD_PRELOAD: ${RANGE_REPLAY_CLIENT}
+    ROCP_TOOL_LIBRARIES: ${RANGE_REPLAY_CLIENT}
     LD_LIBRARY_PATH: ${RANGE_REPLAY_LIBDIR}:${LD_LIBRARY_PATH}
     RR_PERF_PASSES: "4"
 
@@ -123,7 +126,7 @@ jobs:
     group: [range-replay, host]
     command: [range-replay-host]
     environment:
-      LD_PRELOAD: ${RANGE_REPLAY_HOST_CLIENT}
+      ROCP_TOOL_LIBRARIES: ${RANGE_REPLAY_HOST_CLIENT}
       LD_LIBRARY_PATH: ${RANGE_REPLAY_LIBDIR}:${LD_LIBRARY_PATH}
       RR_APP_MODE: host
       RR_HOST_REPLAY: "1"

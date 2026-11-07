@@ -218,6 +218,11 @@ struct range_context_t
     // restore, so it is declined rather than replayed against partially-restored inputs.
     std::vector<void*> snapshot_ptrs = {};
 
+    // Whether the application's kernarg blocks are device memory of the range's agent, from the
+    // first recorded dispatch with arguments. Replay stages its copies in the same kind of memory.
+    bool device_kernargs         = false;
+    bool kernarg_placement_known = false;
+
     // Untracked-memory check (untracked_memory.hpp): the snapshot's spans, kernarg values already
     // looked up, and how many recorded dispatches have been checked.
     std::vector<untracked_memory::address_span_t> covered           = {};
