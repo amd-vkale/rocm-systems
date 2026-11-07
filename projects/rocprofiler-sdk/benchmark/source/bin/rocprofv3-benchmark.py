@@ -1466,6 +1466,16 @@ def execute_input(connection, cursor, args):
                             .replace("${}{}{}".format("{", key, "}"), eitr)
                         )
 
+            # A value may name a different variable, which is how a spec points at a binary that
+            # lives in the build tree: LD_PRELOAD: ${RANGE_REPLAY_CLIENT}. Only the ${NAME} form is
+            # resolved this way, and an unset name is left as written so the failure is visible.
+            for key in list(environ.keys()):
+                environ[key] = re.sub(
+                    r"\$\{([A-Za-z_][A-Za-z0-9_]*)\}",
+                    lambda m: os.environ.get(m.group(1), m.group(0)),
+                    environ[key],
+                )
+
             launcher = [f"{itr}" for itr in launcher]
             cmd = [f"{itr}" for itr in job["command"]]
 
@@ -1533,6 +1543,9 @@ def execute_input(connection, cursor, args):
                     ):
 
                         # loop over the rocprofv3 configurations
+                        # A dict is already keyed by the name --filter-rocprofv3 matches, which is
+                        # how the named defaults in the replay specs are written. A list is either
+                        # bare argument lists (named from their arguments) or single-key dicts.
                         rocprofv3_args_config = job["rocprofv3"]
                         if isinstance(rocprofv3_args_config, (list, tuple)):
                             rocprofv3_args_config = dict()
@@ -1541,21 +1554,17 @@ def execute_input(connection, cursor, args):
                                     for k, v in itr.items():
                                         rocprofv3_args_config[k] = v
                                 elif isinstance(itr, (list, tuple)):
-                                    _name = (
-                                        "_".join(
-                                            [iitr.lstrip().lstrip("-") for iitr in itr]
-                                        )
-                                        if isinstance(itr, (list, tuple))
-                                        else f"{itr}"
+                                    _name = "_".join(
+                                        [iitr.lstrip().lstrip("-") for iitr in itr]
                                     )
                                     rocprofv3_args_config[_name] = itr
                                 else:
                                     raise ValueError(
                                         f"Unsupported rocprofv3 configuration item: {itr}"
                                     )
-                        else:
+                        elif not isinstance(rocprofv3_args_config, dict):
                             raise ValueError(
-                                f"Unsupported rocprofv3 configuration format (expected list or tuple): {rocprofv3_args_config}"
+                                f"Unsupported rocprofv3 configuration format (expected a name-keyed dict, list, or tuple): {rocprofv3_args_config}"
                             )
 
                         if args.shuffle or args.shuffle_rocprofv3:

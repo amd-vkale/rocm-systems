@@ -1,0 +1,129 @@
+# Range replay overhead benchmark configuration.
+#
+# The range-replay add-on to the rocprofv3 benchmark workflow. Kernel replay's cost is
+#
+#   dispatches x tracked footprint x passes
+#
+# because it snapshots once per replayed dispatch. Range replay snapshots once per range, so the
+# same workload costs
+#
+#   ranges x footprint x passes
+#
+# and the saving is proportional to how many dispatches fall inside a range. The sweeps below vary
+# each of those three terms on one workload, range-replay-perf-testapp, whose arguments are
+# ballast_mb, dispatches per range, ranges, and warmup. ballast_mb is the device memory held live
+# across the range, which is the snapshot footprint.
+#
+# Range replay is not a rocprofv3 mode. The tool that arms it is the perf client, preloaded by the
+# job environment, and rocprofv3 only collects counters on top. So the baseline mode (no rocprofv3)
+# still replays -- it is the replay overhead on its own -- and the other modes add counter
+# collection. counters_1 and counters_4 are named, so --filter-rocprofv3 selects one of them.
+#
+# RR_PERF_PASSES must be 2 or more. A pass count of 1 records the range and never re-executes it,
+# which times the application instead of the replay, and the client rejects it.
+#
+# The host-replay job runs the range-replay-host sample, whose extra passes re-enter the
+# application through siglongjmp instead of re-submitting packets. It uses its own client.
+#
+# Run from a build with the tests and samples built, the build's bin directory on PATH:
+#
+#   RANGE_REPLAY_CLIENT=<build>/lib/librange-replay-perf-client.so \
+#   RANGE_REPLAY_HOST_CLIENT=<build>/lib/librange-replay-host-client.so \
+#   RANGE_REPLAY_LIBDIR=<build>/lib \
+#   rocprofv3-benchmark.py -i range-replay.yaml --filter-benchmark baseline --filter-rocprofv3 counters_1
+#
+# See docs/conceptual/range_replay/range_replay_performance.md for what the numbers mean.
+
+defaults:
+  rocprofv3:
+    # One counter group and four. Collecting more groups does not add range-replay passes -- the
+    # pass count is the tool's decision, not the number of --pmc options -- so the difference
+    # between these two is the cost of counter collection during a replay, not of more replay.
+    counters_1: [--pmc, SQ_WAVES]
+    counters_4: [--pmc, SQ_WAVES, --pmc, GRBM_COUNT, --pmc, SQ_INSTS_VALU, --pmc, SQ_BUSY_CYCLES]
+
+  benchmark:
+    - baseline
+    - disabled-sdk-contexts
+    - sdk-buffer-overhead
+    - sdk-callback-overhead
+    - tool-runtime-overhead
+
+  group:
+    - range-replay
+
+  environment: &range_env
+    LD_PRELOAD: ${RANGE_REPLAY_CLIENT}
+    LD_LIBRARY_PATH: ${RANGE_REPLAY_LIBDIR}:${LD_LIBRARY_PATH}
+    RR_PERF_PASSES: "4"
+
+jobs:
+  # ---------------------------------------------------------------------------
+  # Pass-count axis: same range, more passes. Wall time should grow roughly linearly in the
+  # passes; the snapshot and restore are paid once per range regardless.
+  # ---------------------------------------------------------------------------
+  - name: range-passes-2
+    group: [range-replay, pass-sweep]
+    command: [range-replay-perf-testapp, 64, 8, 2, 1]
+    environment:
+      <<: *range_env
+      RR_PERF_PASSES: "2"
+
+  - name: range-passes-4
+    group: [range-replay, pass-sweep]
+    command: [range-replay-perf-testapp, 64, 8, 2, 1]
+
+  - name: range-passes-8
+    group: [range-replay, pass-sweep]
+    command: [range-replay-perf-testapp, 64, 8, 2, 1]
+    environment:
+      <<: *range_env
+      RR_PERF_PASSES: "8"
+
+  # ---------------------------------------------------------------------------
+  # Footprint axis: same dispatch count and pass count, more resident memory. The snapshot copies
+  # the whole footprint, so this is the axis that should move the cost.
+  # ---------------------------------------------------------------------------
+  - name: range-footprint-small
+    group: [range-replay, footprint-sweep]
+    command: [range-replay-perf-testapp, 32, 8, 2, 1]
+
+  - name: range-footprint-medium
+    group: [range-replay, footprint-sweep]
+    command: [range-replay-perf-testapp, 256, 8, 2, 1]
+
+  - name: range-footprint-large
+    group: [range-replay, footprint-sweep]
+    command: [range-replay-perf-testapp, 1024, 8, 2, 1]
+
+  # ---------------------------------------------------------------------------
+  # Dispatches-per-range axis: same footprint and pass count, more dispatches inside the range.
+  #
+  # This is the axis range replay exists for. The snapshot is paid once per range, so 32
+  # dispatches in a range must cost far less than 32 times one dispatch. A result that scales with
+  # the dispatch count means the snapshot is being paid per dispatch.
+  # ---------------------------------------------------------------------------
+  - name: range-dispatches-1
+    group: [range-replay, dispatch-sweep]
+    command: [range-replay-perf-testapp, 64, 1, 2, 1]
+
+  - name: range-dispatches-8
+    group: [range-replay, dispatch-sweep]
+    command: [range-replay-perf-testapp, 64, 8, 2, 1]
+
+  - name: range-dispatches-32
+    group: [range-replay, dispatch-sweep]
+    command: [range-replay-perf-testapp, 64, 32, 2, 1]
+
+  # ---------------------------------------------------------------------------
+  # Host replay: the extra passes re-run the application through siglongjmp instead of
+  # re-submitting the recorded packets. Fixed at 4 passes by the sample. Its own client.
+  # ---------------------------------------------------------------------------
+  - name: range-host
+    group: [range-replay, host]
+    command: [range-replay-host]
+    environment:
+      LD_PRELOAD: ${RANGE_REPLAY_HOST_CLIENT}
+      LD_LIBRARY_PATH: ${RANGE_REPLAY_LIBDIR}:${LD_LIBRARY_PATH}
+      RR_APP_MODE: host
+      RR_HOST_REPLAY: "1"

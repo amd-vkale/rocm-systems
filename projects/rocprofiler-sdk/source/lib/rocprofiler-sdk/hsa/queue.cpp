@@ -37,6 +37,7 @@
 #include "lib/rocprofiler-sdk/hsa/queue_controller.hpp"
 #include "lib/rocprofiler-sdk/hsa/queue_info_session.hpp"
 #include "lib/rocprofiler-sdk/hsa/queue_interposition.hpp"
+#include "lib/rocprofiler-sdk/hsa/replay_window.hpp"
 #include "lib/rocprofiler-sdk/hsa/signal_pool.hpp"
 #include "lib/rocprofiler-sdk/kernel_dispatch/profiling_time.hpp"
 #include "lib/rocprofiler-sdk/kernel_dispatch/tracing.hpp"
@@ -47,6 +48,9 @@
 #include "lib/rocprofiler-sdk/pc_sampling/hsa_adapter.hpp"
 #include "lib/rocprofiler-sdk/pc_sampling/queue_hooks.hpp"
 #include "lib/rocprofiler-sdk/pc_sampling/service.hpp"
+#include "lib/rocprofiler-sdk/range_replay/queue_hooks.hpp"
+#include "lib/rocprofiler-sdk/range_replay/range_state.hpp"
+#include "lib/rocprofiler-sdk/range_replay/replay_callbacks.hpp"
 #include "lib/rocprofiler-sdk/registration.hpp"
 #include "lib/rocprofiler-sdk/spm/queue_hooks.hpp"
 #include "lib/rocprofiler-sdk/thread_trace/queue_hooks.hpp"
@@ -467,6 +471,16 @@ WriteInterceptor(const void* packets,
 
     auto& queue = *static_cast<Queue*>(data);
 
+    // A range replay pass writes its already-transformed packets to the same ring the application
+    // submits through, which lands back here on this thread. Forward them untouched: transforming
+    // them a second time would mint a second dispatch record and a second completion signal for
+    // each packet.
+    if(interceptor_passthrough())
+    {
+        writer(packets, pkt_count);
+        return;
+    }
+
     auto*      gls                 = ::rocprofiler::hip::graph::current_launch_state();
     const bool graph_launch_active = (gls != nullptr);
     // SPM no longer registers a queue-controller callback, so it does not count toward
@@ -500,10 +514,15 @@ WriteInterceptor(const void* packets,
          !pc_sampling::is_configured_on_agent(queue.get_agent().get_rocp_agent()->id) &&
          context::get_active_contexts(full_packet_instrumentation_context_filter).empty());
 
+    // Unlike a service with a per-agent predicate, neither replay service can leave queues on other
+    // agents on the fast path. A range binds to an agent only when its first dispatch arrives, and
+    // a replay window's agent-wide drain and reader lock only see work that took the instrumented
+    // path, so a dispatch forwarded untouched just before or during a window would escape both.
     const bool has_kernel_replay = kernel_replay::has_active_replay_contexts();
+    const bool has_range_replay  = range_replay::has_active_range_replay_contexts();
 
     if(pkt_count == 0 || (no_real_consumers && !graph_launch_active && !has_kernel_replay &&
-                          !hip::event::is_active()))
+                          !has_range_replay && !hip::event::is_active()))
     {
         writer(packets, pkt_count);
         return;
@@ -539,6 +558,10 @@ WriteInterceptor(const void* packets,
         return;
     }
 
+    // Must stay ahead of the graph-launch fast path below: see range_replay/queue_hooks.hpp.
+    if(has_range_replay)
+        range_replay::submission_hook(&queue, packets_arr, pkt_count, graph_launch_active, writer);
+
     if(has_kernel_replay)
     {
         if(graph_launch_active)
@@ -569,7 +592,8 @@ WriteInterceptor(const void* packets,
     // it out of the snapshot window and registers it with async_started() so the agent-wide drain
     // can see it. process_packet_batch increments gls->dispatch_count per dispatch packet, so the
     // graph summary is unaffected by which path runs.
-    if(graph_launch_active && no_real_consumers && !has_kernel_replay && !hip::event::is_active())
+    if(graph_launch_active && no_real_consumers && !has_kernel_replay && !has_range_replay &&
+       !hip::event::is_active())
     {
         gls->dispatch_count += num_dispatch_packets;
         writer(packets, pkt_count);
@@ -1312,11 +1336,12 @@ WriteInterceptor(const void* packets,
     // agent must not submit into a replay's snapshot->restore window -- restore() would revert this
     // dispatch's device writes. Hold the per-agent SHARED lock across the submit below so a replay
     // writer waits for in-flight submits to finish and cannot open its window until we return,
-    // while ordinary dispatches still run concurrently with each other. Gated on has_kernel_replay
-    // so non-replay runs take no lock at all. (The async GPU tail is handled by the replay window's
-    // agent-wide drain, not by this lock.)
+    // while ordinary dispatches still run concurrently with each other. Gated on the replay
+    // services so non-replay runs take no lock at all, and skipped on a thread that is replaying a
+    // range: it already holds this same mutex as a writer. (The async GPU tail is handled by the
+    // replay window's agent-wide drain, not by this lock.)
     std::optional<std::shared_lock<std::shared_mutex>> replay_reader_guard{};
-    if(has_kernel_replay)
+    if((has_kernel_replay || has_range_replay) && !range_replay::this_thread_replaying())
         replay_reader_guard.emplace(agent_replay_mutex(queue.get_agent().get_rocp_agent()->id));
 
     bool should_batch_packets = true;

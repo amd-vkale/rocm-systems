@@ -123,33 +123,38 @@ jobs:
   # ---------------------------------------------------------------------------
   # Pass-count axis: same workload, more groups.
   # ---------------------------------------------------------------------------
+  # Named configs rather than bare argument lists, so --filter-rocprofv3 selects one pass
+  # count by the same name the defaults use. A bare list is named from every argument, which
+  # makes the filter string the whole command line.
   - name: replay-pass-sweep
     group: [kernel-replay, pass-sweep]
     command: [transpose, 1, 100, 10, 2048, 2048]
     rocprofv3:
-      - [--replay-mode, kernel, --kernel-replay-beta-enabled, --pmc, SQ_WAVES]
-      - [
-          --replay-mode,
-          kernel,
-          --kernel-replay-beta-enabled,
-          --pmc,
-          SQ_WAVES,
-          --pmc,
-          GRBM_COUNT,
-        ]
-      - [
-          --replay-mode,
-          kernel,
-          --kernel-replay-beta-enabled,
-          --pmc,
-          SQ_WAVES,
-          --pmc,
-          GRBM_COUNT,
-          --pmc,
-          SQ_INSTS_VALU,
-          --pmc,
-          SQ_BUSY_CYCLES,
-        ]
+      - replay_1_group: [--replay-mode, kernel, --kernel-replay-beta-enabled, --pmc, SQ_WAVES]
+      - replay_2_groups:
+          [
+            --replay-mode,
+            kernel,
+            --kernel-replay-beta-enabled,
+            --pmc,
+            SQ_WAVES,
+            --pmc,
+            GRBM_COUNT,
+          ]
+      - replay_4_groups:
+          [
+            --replay-mode,
+            kernel,
+            --kernel-replay-beta-enabled,
+            --pmc,
+            SQ_WAVES,
+            --pmc,
+            GRBM_COUNT,
+            --pmc,
+            SQ_INSTS_VALU,
+            --pmc,
+            SQ_BUSY_CYCLES,
+          ]
 
   # ---------------------------------------------------------------------------
   # Footprint axis: same dispatch count and pass count, more resident memory.
