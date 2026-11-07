@@ -1,0 +1,86 @@
+diff -ruN RSBench/openmp-offload/main.c apps/rsbench-omp/main.c
+--- RSBench/openmp-offload/main.c	2026-11-06 23:05:44.194958013 -0600
++++ apps/rsbench-omp/main.c	2026-11-06 23:24:32.820398612 -0600
+@@ -51,7 +51,19 @@
+ 	if( input.simulation_method == EVENT_BASED )
+ 	{
+ 		if( input.kernel_id == 0 )
++		{
++			int rr_full = rr_mode() != RR_MODE_NONE && rr_range_is_full();
++			if( rr_full && getenv("RR_WARMUP") != NULL )
++			{
++				#pragma omp target
++				{ }
++			}
++			RR_BEGIN(2, rr_full);
+ 			run_event_based_simulation(input, SD, &vhash );
++			if( rr_full )
++				fprintf(stderr, "[rr-app] rsbench host_pass=%lu hash=%lu\n", rr_host_pass(), vhash % 999983);
++			RR_END(rr_full);
++		}
+ 		else
+ 		{
+ 			printf("Error: No kernel ID %d found!\n", input.kernel_id);
+diff -ruN RSBench/openmp-offload/rsbench.h apps/rsbench-omp/rsbench.h
+--- RSBench/openmp-offload/rsbench.h	2026-11-06 23:05:44.194958013 -0600
++++ apps/rsbench-omp/rsbench.h	2026-11-06 23:09:08.429365578 -0600
+@@ -7,6 +7,7 @@
+ #include<float.h>
+ #include<omp.h>
+ #include<assert.h>
++#include "../rr_app.h"
+ 
+ #define OPENMP
+ 
+diff -ruN RSBench/openmp-offload/simulation.c apps/rsbench-omp/simulation.c
+--- RSBench/openmp-offload/simulation.c	2026-11-06 23:05:44.194958013 -0600
++++ apps/rsbench-omp/simulation.c	2026-11-06 23:22:42.811037381 -0600
+@@ -21,6 +21,24 @@
+ 
+ 	// Main simulation loop over macroscopic cross section lookups
+ 
++	int rr_kernel = rr_mode() != RR_MODE_NONE && !rr_range_is_full();
++	if( rr_kernel )
++	{
++		#pragma omp target enter data\
++		map(to:data)\
++		map(to:data.n_poles[:data.length_n_poles])\
++		map(to:data.n_windows[:data.length_n_windows])\
++		map(to:data.poles[:data.length_poles])\
++		map(to:data.windows[:data.length_windows])\
++		map(to:data.pseudo_K0RS[:data.length_pseudo_K0RS])\
++		map(to:data.num_nucs[:data.length_num_nucs])\
++		map(to:data.mats[:data.length_mats])\
++		map(to:data.concs[:data.length_concs])\
++		map(to:offloaded_to_device)\
++		map(alloc:verification[:input.lookups])
++	}
++	RR_BEGIN(1, rr_kernel);
++
+ 	#pragma omp target teams distribute parallel for\
+ 	map(to:data.n_poles[:data.length_n_poles])\
+ 	map(to:data.n_windows[:data.length_n_windows])\
+@@ -74,6 +92,23 @@
+ 		if( i == 0 )
+ 			offloaded_to_device = !omp_is_initial_device();
+ 	}
++
++	RR_END(rr_kernel);
++	if( rr_kernel )
++	{
++		#pragma omp target exit data\
++		map(from:verification[:input.lookups])\
++		map(from:offloaded_to_device)\
++		map(release:data.n_poles[:data.length_n_poles])\
++		map(release:data.n_windows[:data.length_n_windows])\
++		map(release:data.poles[:data.length_poles])\
++		map(release:data.windows[:data.length_windows])\
++		map(release:data.pseudo_K0RS[:data.length_pseudo_K0RS])\
++		map(release:data.num_nucs[:data.length_num_nucs])\
++		map(release:data.mats[:data.length_mats])\
++		map(release:data.concs[:data.length_concs])\
++		map(release:data)
++	}
+   
+   // Reduce validation hash on the host
+   unsigned long long validation_hash = 0;

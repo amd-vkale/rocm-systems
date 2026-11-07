@@ -1,0 +1,50 @@
+diff --git a/projects/rocprofiler-sdk/source/lib/rocprofiler-sdk/range_replay/host_replay.cpp b/projects/rocprofiler-sdk/source/lib/rocprofiler-sdk/range_replay/host_replay.cpp
+index 53f082a0503..7e919483cc6 100644
+--- a/projects/rocprofiler-sdk/source/lib/rocprofiler-sdk/range_replay/host_replay.cpp
++++ b/projects/rocprofiler-sdk/source/lib/rocprofiler-sdk/range_replay/host_replay.cpp
+@@ -21,6 +21,7 @@
+ // THE SOFTWARE.
+ 
+ #include "lib/rocprofiler-sdk/range_replay/host_replay.hpp"
++#include "lib/common/environment.hpp"
+ #include "lib/common/logging.hpp"
+ #include "lib/common/scope_destructor.hpp"
+ #include "lib/rocprofiler-sdk/agent.hpp"
+@@ -172,6 +173,37 @@ count_divergence(const host_range_state_t& host)
+     auto divergent = uint64_t{0};
+     for(size_t i = 0; i < host.agents.size(); ++i)
+         divergent += digest::count_divergent(host.agents[i].exit_digests, digests[i]);
++    if(common::get_env("ROCPROF_RANGE_REPLAY_DIAG", false))
++    {
++        for(size_t i = 0; i < host.agents.size(); ++i)
++        {
++            const auto snap = kernel_replay::memory_snapshot::snap(host.agents[i].hsa_agent);
++            const auto& lhs = host.agents[i].exit_digests;
++            const auto& rhs = digests[i];
++            ROCP_WARNING << fmt::format("range replay diag: agent {} blocks={} exit_digests={} "
++                                        "final_digests={} entry_blocks={}",
++                                        host.agents[i].agent_id.handle,
++                                        snap.blocks.size(),
++                                        lhs.size(),
++                                        rhs.size(),
++                                        host.agents[i].snapshot.blocks.size());
++            for(size_t b = 0; b < std::min({lhs.size(), rhs.size(), snap.blocks.size()}); ++b)
++            {
++                if(lhs[b] == rhs[b]) continue;
++                bool in_entry = false;
++                for(const auto& eb : host.agents[i].snapshot.blocks)
++                    if(eb.gpu_addr == snap.blocks[b].gpu_addr) in_entry = true;
++                ROCP_WARNING << fmt::format(
++                    "range replay diag: divergent block {} addr={} bytes={} from_tracker={} "
++                    "in_entry_snapshot={}",
++                    b,
++                    snap.blocks[b].gpu_addr,
++                    snap.blocks[b].host_copy.size(),
++                    snap.blocks[b].from_tracker,
++                    in_entry);
++            }
++        }
++    }
+     for(size_t i = 0; i < host.regions.size(); ++i)
+         if(host.regions[i].exit_digest != digests.back()[i]) ++divergent;
+     return divergent;

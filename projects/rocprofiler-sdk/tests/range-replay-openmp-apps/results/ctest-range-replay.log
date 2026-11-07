@@ -1,0 +1,269 @@
+Test project /home/vkale/work/rr-validate/build-sdk
+        Start  449: unit.range_replay_state.fresh_record_is_eligible
+  1/127 Test  #449: unit.range_replay_state.fresh_record_is_eligible ............................................   Passed    0.01 sec
+        Start  450: unit.range_replay_state.binds_to_first_queue_and_agent
+  2/127 Test  #450: unit.range_replay_state.binds_to_first_queue_and_agent ......................................   Passed    0.02 sec
+        Start  451: unit.range_replay_state.second_queue_on_same_agent_declines_multi_queue
+  3/127 Test  #451: unit.range_replay_state.second_queue_on_same_agent_declines_multi_queue .....................   Passed    0.01 sec
+        Start  452: unit.range_replay_state.second_agent_declines_multi_agent
+  4/127 Test  #452: unit.range_replay_state.second_agent_declines_multi_agent ...................................   Passed    0.01 sec
+        Start  453: unit.range_replay_state.records_dispatches_in_submission_order
+  5/127 Test  #453: unit.range_replay_state.records_dispatches_in_submission_order ..............................   Passed    0.01 sec
+        Start  454: unit.range_replay_state.first_decline_reason_wins
+  6/127 Test  #454: unit.range_replay_state.first_decline_reason_wins ...........................................   Passed    0.01 sec
+        Start  455: unit.range_replay_state.declining_releases_recorded_dispatches
+  7/127 Test  #455: unit.range_replay_state.declining_releases_recorded_dispatches ..............................   Passed    0.01 sec
+        Start  456: unit.range_replay_state.declined_range_stops_binding
+  8/127 Test  #456: unit.range_replay_state.declined_range_stops_binding ........................................   Passed    0.01 sec
+        Start  457: unit.range_replay_state.exceeding_the_dispatch_budget_declines
+  9/127 Test  #457: unit.range_replay_state.exceeding_the_dispatch_budget_declines ..............................   Passed    0.02 sec
+        Start  458: unit.range_replay_state.external_decline_is_folded_into_the_record
+ 10/127 Test  #458: unit.range_replay_state.external_decline_is_folded_into_the_record ..........................   Passed    0.01 sec
+        Start  459: unit.range_replay_state.no_range_is_open_by_default
+ 11/127 Test  #459: unit.range_replay_state.no_range_is_open_by_default .........................................   Passed    0.01 sec
+        Start  460: unit.range_replay_state.ranges_are_thread_scoped_and_do_not_nest
+ 12/127 Test  #460: unit.range_replay_state.ranges_are_thread_scoped_and_do_not_nest ............................   Passed    0.01 sec
+        Start  461: unit.range_replay_state.foreign_dispatch_declines_an_open_range_on_that_agent
+ 13/127 Test  #461: unit.range_replay_state.foreign_dispatch_declines_an_open_range_on_that_agent ...............   Passed    0.01 sec
+        Start  462: unit.range_replay_state.kernels_from_code_objects_loaded_before_the_range_are_admitted
+ 14/127 Test  #462: unit.range_replay_state.kernels_from_code_objects_loaded_before_the_range_are_admitted ......   Passed    0.01 sec
+        Start  463: unit.range_replay_state.kernel_from_a_code_object_loaded_inside_the_range_declines
+ 15/127 Test  #463: unit.range_replay_state.kernel_from_a_code_object_loaded_inside_the_range_declines ..........   Passed    0.01 sec
+        Start  464: unit.range_replay_state.code_object_check_needs_a_watermark_and_an_eligible_range
+ 16/127 Test  #464: unit.range_replay_state.code_object_check_needs_a_watermark_and_an_eligible_range ...........   Passed    0.01 sec
+        Start  465: unit.range_replay_state.code_object_unload_leaves_an_unbound_range_eligible
+ 17/127 Test  #465: unit.range_replay_state.code_object_unload_leaves_an_unbound_range_eligible .................   Passed    0.01 sec
+        Start  466: unit.range_replay_state.code_object_unload_with_no_range_open_is_harmless
+ 18/127 Test  #466: unit.range_replay_state.code_object_unload_with_no_range_open_is_harmless ...................   Passed    0.01 sec
+        Start  467: unit.range_replay_digest.identical_buffers_hash_identically
+ 19/127 Test  #467: unit.range_replay_digest.identical_buffers_hash_identically .................................   Passed    0.00 sec
+        Start  468: unit.range_replay_digest.a_single_changed_byte_changes_the_hash
+ 20/127 Test  #468: unit.range_replay_digest.a_single_changed_byte_changes_the_hash .............................   Passed    0.00 sec
+        Start  469: unit.range_replay_digest.length_is_part_of_the_hash
+ 21/127 Test  #469: unit.range_replay_digest.length_is_part_of_the_hash .........................................   Passed    0.00 sec
+        Start  470: unit.range_replay_digest.empty_and_null_inputs_are_well_defined
+ 22/127 Test  #470: unit.range_replay_digest.empty_and_null_inputs_are_well_defined .............................   Passed    0.00 sec
+        Start  471: unit.range_replay_digest.matching_digests_report_no_divergence
+ 23/127 Test  #471: unit.range_replay_digest.matching_digests_report_no_divergence ..............................   Passed    0.00 sec
+        Start  472: unit.range_replay_digest.each_differing_region_is_counted
+ 24/127 Test  #472: unit.range_replay_digest.each_differing_region_is_counted ...................................   Passed    0.00 sec
+        Start  473: unit.range_replay_digest.a_region_count_mismatch_is_fully_divergent
+ 25/127 Test  #473: unit.range_replay_digest.a_region_count_mismatch_is_fully_divergent .........................   Passed    0.00 sec
+        Start  474: unit.range_replay_queue_hooks.inert_when_no_range_is_open
+ 26/127 Test  #474: unit.range_replay_queue_hooks.inert_when_no_range_is_open ...................................   Passed    0.01 sec
+        Start  475: unit.range_replay_queue_hooks.ignores_a_thread_that_is_resubmitting_a_replay
+ 27/127 Test  #475: unit.range_replay_queue_hooks.ignores_a_thread_that_is_resubmitting_a_replay ................   Passed    0.01 sec
+        Start  476: unit.range_replay_retained_kernarg.a_block_fits_requests_from_half_to_all_of_its_capacity
+ 28/127 Test  #476: unit.range_replay_retained_kernarg.a_block_fits_requests_from_half_to_all_of_its_capacity ...   Passed    0.00 sec
+        Start  477: unit.range_replay_retained_kernarg.nothing_is_retained_before_a_range_hands_a_block_back
+ 29/127 Test  #477: unit.range_replay_retained_kernarg.nothing_is_retained_before_a_range_hands_a_block_back ....   Passed    0.00 sec
+        Start  478: unit.range_replay_retained_kernarg.a_retained_block_is_handed_over_exactly_once
+ 30/127 Test  #478: unit.range_replay_retained_kernarg.a_retained_block_is_handed_over_exactly_once .............   Passed    0.00 sec
+        Start  479: unit.range_replay_retained_kernarg.retaining_a_second_block_frees_the_first
+ 31/127 Test  #479: unit.range_replay_retained_kernarg.retaining_a_second_block_frees_the_first .................   Passed    0.00 sec
+        Start  480: unit.range_replay_retained_kernarg.each_agent_keeps_its_own_block
+ 32/127 Test  #480: unit.range_replay_retained_kernarg.each_agent_keeps_its_own_block ...........................   Passed    0.00 sec
+        Start  481: unit.range_replay_retained_kernarg.freeing_a_block_releases_it_once_and_empties_it
+ 33/127 Test  #481: unit.range_replay_retained_kernarg.freeing_a_block_releases_it_once_and_empties_it ..........   Passed    0.00 sec
+        Start  482: unit.range_replay_host.arming_is_consumed_exactly_once
+ 34/127 Test  #482: unit.range_replay_host.arming_is_consumed_exactly_once ......................................   Passed    0.01 sec
+        Start  483: unit.range_replay_host.arming_is_thread_local
+ 35/127 Test  #483: unit.range_replay_host.arming_is_thread_local ...............................................   Passed    0.01 sec
+        Start  484: unit.range_replay_host.begin_consumes_arming_and_pending_regions_even_when_it_fails
+ 36/127 Test  #484: unit.range_replay_host.begin_consumes_arming_and_pending_regions_even_when_it_fails .........   Passed    0.02 sec
+        Start  485: unit.range_replay_host.begin_macro_calls_begin_once_and_reports_success_on_reentry
+ 37/127 Test  #485: unit.range_replay_host.begin_macro_calls_begin_once_and_reports_success_on_reentry ..........   Passed    0.01 sec
+        Start  486: unit.range_replay_host.track_memory_and_get_host_pass_validate_arguments
+ 38/127 Test  #486: unit.range_replay_host.track_memory_and_get_host_pass_validate_arguments ....................   Passed    0.01 sec
+        Start  487: unit.range_replay_host.regions_registered_before_begin_are_pending_in_order
+ 39/127 Test  #487: unit.range_replay_host.regions_registered_before_begin_are_pending_in_order .................   Passed    0.02 sec
+        Start  488: unit.range_replay_host.captured_regions_restore_their_entry_contents
+ 40/127 Test  #488: unit.range_replay_host.captured_regions_restore_their_entry_contents ........................   Passed    0.01 sec
+        Start  489: unit.range_replay_host.regions_tracked_inside_a_range_are_captured_on_the_first_pass_only
+ 41/127 Test  #489: unit.range_replay_host.regions_tracked_inside_a_range_are_captured_on_the_first_pass_only ...   Passed    0.01 sec
+        Start  490: unit.range_replay_host.own_device_writes_do_not_decline_a_host_range
+ 42/127 Test  #490: unit.range_replay_host.own_device_writes_do_not_decline_a_host_range ........................   Passed    0.02 sec
+        Start  491: unit.range_replay_host.another_threads_device_write_declines_a_host_range
+ 43/127 Test  #491: unit.range_replay_host.another_threads_device_write_declines_a_host_range ...................   Passed    0.02 sec
+        Start  492: unit.range_replay_host.another_threads_dispatch_on_any_agent_declines_a_host_range
+ 44/127 Test  #492: unit.range_replay_host.another_threads_dispatch_on_any_agent_declines_a_host_range ..........   Passed    0.01 sec
+        Start  493: unit.range_replay_host.an_unbound_packet_range_ignores_other_threads
+ 45/127 Test  #493: unit.range_replay_host.an_unbound_packet_range_ignores_other_threads ........................   Passed    0.02 sec
+        Start  494: unit.range_replay_host.code_object_unload_does_not_decline_a_host_range
+ 46/127 Test  #494: unit.range_replay_host.code_object_unload_does_not_decline_a_host_range .....................   Passed    0.01 sec
+        Start  495: unit.range_replay_host.dispatch_counting_stops_at_a_decline
+ 47/127 Test  #495: unit.range_replay_host.dispatch_counting_stops_at_a_decline .................................   Passed    0.01 sec
+        Start  496: unit.range_replay_host.a_jump_re_executes_the_range_over_restored_host_state
+ 48/127 Test  #496: unit.range_replay_host.a_jump_re_executes_the_range_over_restored_host_state ................   Passed    0.01 sec
+        Start  497: unit.range_replay_abi.record_is_a_c_compatible_aggregate
+ 49/127 Test  #497: unit.range_replay_abi.record_is_a_c_compatible_aggregate ....................................   Passed    0.00 sec
+        Start  498: unit.range_replay_abi.size_is_the_first_member
+ 50/127 Test  #498: unit.range_replay_abi.size_is_the_first_member ..............................................   Passed    0.00 sec
+        Start  499: unit.range_replay_abi.range_id_follows_size
+ 51/127 Test  #499: unit.range_replay_abi.range_id_follows_size .................................................   Passed    0.00 sec
+        Start  500: unit.range_replay_abi.members_are_in_declaration_order
+ 52/127 Test  #500: unit.range_replay_abi.members_are_in_declaration_order ......................................   Passed    0.00 sec
+        Start  501: unit.range_replay_abi.members_do_not_overlap_and_fit
+ 53/127 Test  #501: unit.range_replay_abi.members_do_not_overlap_and_fit ........................................   Passed    0.00 sec
+        Start  502: unit.range_replay_abi.counters_are_64_bit
+ 54/127 Test  #502: unit.range_replay_abi.counters_are_64_bit ...................................................   Passed    0.00 sec
+        Start  503: unit.range_replay_abi.callback_signatures_are_pinned
+ 55/127 Test  #503: unit.range_replay_abi.callback_signatures_are_pinned ........................................   Passed    0.00 sec
+        Start  504: unit.range_replay_abi.zero_initialized_record_opts_out_of_replay
+ 56/127 Test  #504: unit.range_replay_abi.zero_initialized_record_opts_out_of_replay ............................   Passed    0.00 sec
+        Start  505: unit.range_replay_abi.zero_status_is_replayed
+ 57/127 Test  #505: unit.range_replay_abi.zero_status_is_replayed ...............................................   Passed    0.00 sec
+        Start  506: unit.range_replay_abi.size_member_carries_the_layout_prefix
+ 58/127 Test  #506: unit.range_replay_abi.size_member_carries_the_layout_prefix .................................   Passed    0.00 sec
+        Start  507: unit.range_replay_abi.alignment_is_sufficient_for_widest_member
+ 59/127 Test  #507: unit.range_replay_abi.alignment_is_sufficient_for_widest_member .............................   Passed    0.00 sec
+        Start  508: unit.range_replay_abi.operation_enum_values_are_stable
+ 60/127 Test  #508: unit.range_replay_abi.operation_enum_values_are_stable ......................................   Passed    0.00 sec
+        Start  509: unit.range_replay_abi.operation_enum_grows_only_at_the_end
+ 61/127 Test  #509: unit.range_replay_abi.operation_enum_grows_only_at_the_end ..................................   Passed    0.00 sec
+        Start  510: unit.range_replay_abi.real_operations_are_within_bounds
+ 62/127 Test  #510: unit.range_replay_abi.real_operations_are_within_bounds .....................................   Passed    0.01 sec
+        Start  511: unit.range_replay_abi.status_enum_values_are_stable
+ 63/127 Test  #511: unit.range_replay_abi.status_enum_values_are_stable .........................................   Passed    0.00 sec
+        Start  512: unit.range_replay_abi.every_decline_reason_differs_from_replayed
+ 64/127 Test  #512: unit.range_replay_abi.every_decline_reason_differs_from_replayed ............................   Passed    0.00 sec
+        Start  513: unit.range_replay_abi.tracing_kind_is_within_callback_tracing_bounds
+ 65/127 Test  #513: unit.range_replay_abi.tracing_kind_is_within_callback_tracing_bounds ........................   Passed    0.00 sec
+        Start  514: unit.range_replay_abi.range_replay_is_a_distinct_domain_from_kernel_replay
+ 66/127 Test  #514: unit.range_replay_abi.range_replay_is_a_distinct_domain_from_kernel_replay ..................   Passed    0.00 sec
+        Start  515: unit.range_replay_abi.replayed_pass_indices_start_at_one
+ 67/127 Test  #515: unit.range_replay_abi.replayed_pass_indices_start_at_one ....................................   Passed    0.00 sec
+        Start  516: unit.range_replay_abi.indefinite_loop_is_distinguishable_from_single_pass
+ 68/127 Test  #516: unit.range_replay_abi.indefinite_loop_is_distinguishable_from_single_pass ...................   Passed    0.00 sec
+        Start  517: unit.range_replay_abi.writing_callbacks_does_not_disturb_counters
+ 69/127 Test  #517: unit.range_replay_abi.writing_callbacks_does_not_disturb_counters ...........................   Passed    0.00 sec
+        Start  518: unit.range_replay_abi.truncated_copy_preserves_the_known_prefix
+ 70/127 Test  #518: unit.range_replay_abi.truncated_copy_preserves_the_known_prefix .............................   Passed    0.00 sec
+        Start  519: unit.range_replay_abi.c_and_cxx_agree_on_record_size_and_alignment
+ 71/127 Test  #519: unit.range_replay_abi.c_and_cxx_agree_on_record_size_and_alignment ..........................   Passed    0.00 sec
+        Start  520: unit.range_replay_abi.c_and_cxx_agree_on_every_field_offset
+ 72/127 Test  #520: unit.range_replay_abi.c_and_cxx_agree_on_every_field_offset .................................   Passed    0.00 sec
+        Start  521: unit.range_replay_abi.c_and_cxx_agree_on_the_status_enum_width
+ 73/127 Test  #521: unit.range_replay_abi.c_and_cxx_agree_on_the_status_enum_width ..............................   Passed    0.00 sec
+        Start  522: unit.range_replay_abi.c_and_cxx_agree_on_enum_values
+ 74/127 Test  #522: unit.range_replay_abi.c_and_cxx_agree_on_enum_values ........................................   Passed    0.00 sec
+        Start  523: unit.range_replay_abi.close_record_written_by_c_reads_back_in_cxx
+ 75/127 Test  #523: unit.range_replay_abi.close_record_written_by_c_reads_back_in_cxx ...........................   Passed    0.00 sec
+        Start  524: unit.range_replay_configure.single_subscriber_only
+ 76/127 Test  #524: unit.range_replay_configure.single_subscriber_only ..........................................   Passed    0.01 sec
+        Start  525: unit.range_replay_configure.domain_reports_its_operations
+ 77/127 Test  #525: unit.range_replay_configure.domain_reports_its_operations ...................................   Passed    0.01 sec
+        Start  526: unit.range_replay_configure.operations_have_names
+ 78/127 Test  #526: unit.range_replay_configure.operations_have_names ...........................................   Passed    0.01 sec
+        Start  527: unit.range_replay_configure.domain_has_a_name
+ 79/127 Test  #527: unit.range_replay_configure.domain_has_a_name ...............................................   Passed    0.01 sec
+        Start  528: unit.range_replay_configure.unknown_operations_are_rejected
+ 80/127 Test  #528: unit.range_replay_configure.unknown_operations_are_rejected .................................   Passed    0.01 sec
+        Start  529: unit.range_replay_configure.end_without_begin_is_rejected
+ 81/127 Test  #529: unit.range_replay_configure.end_without_begin_is_rejected ...................................   Passed    0.01 sec
+        Start  530: unit.range_replay_phases.fixed_pass_count_runs_every_pass_but_the_application_run
+ 82/127 Test  #530: unit.range_replay_phases.fixed_pass_count_runs_every_pass_but_the_application_run ...........   Passed    0.01 sec
+        Start  531: unit.range_replay_phases.continue_callback_cannot_extend_a_fixed_loop
+ 83/127 Test  #531: unit.range_replay_phases.continue_callback_cannot_extend_a_fixed_loop .......................   Passed    0.01 sec
+        Start  532: unit.range_replay_phases.continue_callback_can_end_a_fixed_loop_early
+ 84/127 Test  #532: unit.range_replay_phases.continue_callback_can_end_a_fixed_loop_early .......................   Passed    0.01 sec
+        Start  533: unit.range_replay_phases.indefinite_loop_runs_until_the_callback_stops_it
+ 85/127 Test  #533: unit.range_replay_phases.indefinite_loop_runs_until_the_callback_stops_it ...................   Passed    0.01 sec
+        Start  534: unit.range_replay_phases.indefinite_loop_without_a_callback_never_stops_itself
+ 86/127 Test  #534: unit.range_replay_phases.indefinite_loop_without_a_callback_never_stops_itself ..............   Passed    0.01 sec
+        Start  535: unit.range_replay_phases.config_user_data_flows_to_every_pass_and_to_close
+ 87/127 Test  #535: unit.range_replay_phases.config_user_data_flows_to_every_pass_and_to_close ..................   Passed    0.02 sec
+        Start  536: unit.range_replay_phases.pass_user_data_write_is_scoped_to_its_own_pass
+ 88/127 Test  #536: unit.range_replay_phases.pass_user_data_write_is_scoped_to_its_own_pass .....................   Passed    0.02 sec
+        Start  537: unit.range_replay_phases.close_reports_the_outcome_once
+ 89/127 Test  #537: unit.range_replay_phases.close_reports_the_outcome_once .....................................   Passed    0.02 sec
+        Start  538: unit.range_replay_phases.declined_range_still_reports_close
+ 90/127 Test  #538: unit.range_replay_phases.declined_range_still_reports_close .................................   Passed    0.02 sec
+        Start  539: unit.range_replay_phases.close_without_subscribed_contexts_is_a_no_op
+ 91/127 Test  #539: unit.range_replay_phases.close_without_subscribed_contexts_is_a_no_op .......................   Passed    0.01 sec
+        Start  540: unit.range_replay_executor.declined_range_reports_its_own_decline_reason
+ 92/127 Test  #540: unit.range_replay_executor.declined_range_reports_its_own_decline_reason ....................   Passed    0.02 sec
+        Start  541: unit.range_replay_executor.decline_reason_outranks_a_missing_snapshot
+ 93/127 Test  #541: unit.range_replay_executor.decline_reason_outranks_a_missing_snapshot .......................   Passed    0.01 sec
+        Start  542: unit.range_replay_executor.range_without_a_pass_count_is_not_replayed
+ 94/127 Test  #542: unit.range_replay_executor.range_without_a_pass_count_is_not_replayed .......................   Passed    0.01 sec
+        Start  543: unit.range_replay_executor.empty_range_reports_no_dispatch
+ 95/127 Test  #543: unit.range_replay_executor.empty_range_reports_no_dispatch ..................................   Passed    0.01 sec
+        Start  544: unit.range_replay_executor.unbound_range_reports_no_dispatch
+ 96/127 Test  #544: unit.range_replay_executor.unbound_range_reports_no_dispatch ................................   Passed    0.01 sec
+        Start  545: unit.range_replay_executor.empty_recording_needs_no_kernarg_block
+ 97/127 Test  #545: unit.range_replay_executor.empty_recording_needs_no_kernarg_block ...........................   Passed    0.01 sec
+        Start  546: unit.range_replay_executor.argument_free_dispatches_reserve_nothing
+ 98/127 Test  #546: unit.range_replay_executor.argument_free_dispatches_reserve_nothing .........................   Passed    0.01 sec
+        Start  547: unit.range_replay_executor.each_dispatch_is_aligned_and_disjoint
+ 99/127 Test  #547: unit.range_replay_executor.each_dispatch_is_aligned_and_disjoint ............................   Passed    0.01 sec
+        Start  548: unit.range_replay_executor.sizes_round_up_to_the_alignment
+100/127 Test  #548: unit.range_replay_executor.sizes_round_up_to_the_alignment ..................................   Passed    0.01 sec
+        Start  549: unit.range_replay_executor.argument_free_dispatches_do_not_consume_space
+101/127 Test  #549: unit.range_replay_executor.argument_free_dispatches_do_not_consume_space ....................   Passed    0.01 sec
+        Start  550: unit.range_replay_executor.pass_packets_are_serialized
+102/127 Test  #550: unit.range_replay_executor.pass_packets_are_serialized ......................................   Passed    0.01 sec
+        Start  551: unit.range_replay_executor.pass_packets_preserve_the_recording
+103/127 Test  #551: unit.range_replay_executor.pass_packets_preserve_the_recording ..............................   Passed    0.01 sec
+        Start  552: unit.range_replay_executor.building_a_pass_does_not_consume_the_recording
+104/127 Test  #552: unit.range_replay_executor.building_a_pass_does_not_consume_the_recording ...................   Passed    0.01 sec
+        Start  553: unit.range_replay_executor.digests_are_ordered_by_device_address
+105/127 Test  #553: unit.range_replay_executor.digests_are_ordered_by_device_address ............................   Passed    0.01 sec
+        Start  554: unit.range_replay_executor.only_changed_regions_are_counted_as_divergent
+106/127 Test  #554: unit.range_replay_executor.only_changed_regions_are_counted_as_divergent ....................   Passed    0.01 sec
+        Start  555: unit.range_replay_executor.an_empty_snapshot_digests_to_nothing
+107/127 Test  #555: unit.range_replay_executor.an_empty_snapshot_digests_to_nothing .............................   Passed    0.01 sec
+        Start 1068: tests.integration.execute.test-range-replay-local-context-counters-all-passes
+108/127 Test #1068: tests.integration.execute.test-range-replay-local-context-counters-all-passes ...............   Passed    0.57 sec
+        Start 1069: tests.integration.execute.test-range-replay-local-context-counters-stop-after-0
+109/127 Test #1069: tests.integration.execute.test-range-replay-local-context-counters-stop-after-0 .............   Passed    0.87 sec
+        Start 1070: tests.integration.execute.test-range-replay-local-context-counters-stop-then-restart
+110/127 Test #1070: tests.integration.execute.test-range-replay-local-context-counters-stop-then-restart ........   Passed    0.94 sec
+        Start 1071: tests.integration.execute.test-range-replay-local-context-att-all-passes
+111/127 Test #1071: tests.integration.execute.test-range-replay-local-context-att-all-passes ....................   Passed    0.52 sec
+        Start 1072: tests.integration.execute.test-range-replay-local-context-att-stop-after-0
+112/127 Test #1072: tests.integration.execute.test-range-replay-local-context-att-stop-after-0 ..................   Passed    0.80 sec
+        Start 1073: tests.integration.execute.test-range-replay-local-context-spm-all-passes
+113/127 Test #1073: tests.integration.execute.test-range-replay-local-context-spm-all-passes ....................   Passed    0.54 sec
+        Start 1074: tests.integration.execute.test-range-replay-local-context-spm-stop-after-0
+114/127 Test #1074: tests.integration.execute.test-range-replay-local-context-spm-stop-after-0 ..................   Passed    0.70 sec
+        Start 1075: tests.integration.execute.test-range-replay-local-context-pc-sampling-stop-after-0
+115/127 Test #1075: tests.integration.execute.test-range-replay-local-context-pc-sampling-stop-after-0 ..........***Skipped   0.50 sec
+        Start 1076: tests.integration.execute.test-range-replay-local-context-counters-att
+116/127 Test #1076: tests.integration.execute.test-range-replay-local-context-counters-att ......................   Passed    1.14 sec
+        Start 1077: tests.integration.execute.test-range-replay-host-timestep
+117/127 Test #1077: tests.integration.execute.test-range-replay-host-timestep ...................................   Passed    0.73 sec
+        Start 1078: tests.integration.execute.test-range-replay-host-timestep-graph
+118/127 Test #1078: tests.integration.execute.test-range-replay-host-timestep-graph .............................   Passed    0.61 sec
+        Start 1079: tests.integration.execute.test-range-replay-host-timestep-scratch-alloc
+119/127 Test #1079: tests.integration.execute.test-range-replay-host-timestep-scratch-alloc .....................   Passed    0.76 sec
+        Start 1080: tests.integration.execute.test-range-replay-host-continue-cb
+120/127 Test #1080: tests.integration.execute.test-range-replay-host-continue-cb ................................   Passed    0.72 sec
+        Start 1081: tests.integration.execute.test-range-replay-host-local-stop
+121/127 Test #1081: tests.integration.execute.test-range-replay-host-local-stop .................................   Passed    0.59 sec
+        Start 1082: tests.integration.execute.test-range-replay-host-packet-declines
+122/127 Test #1082: tests.integration.execute.test-range-replay-host-packet-declines ............................   Passed    0.56 sec
+        Start 1083: tests.integration.execute.test-range-replay-host-unarmed-declines
+123/127 Test #1083: tests.integration.execute.test-range-replay-host-unarmed-declines ...........................   Passed    0.66 sec
+        Start 2595: range-replay-basic
+124/127 Test #2595: range-replay-basic ..........................................................................   Passed    0.29 sec
+        Start 2596: range-replay-host
+125/127 Test #2596: range-replay-host ...........................................................................   Passed    0.33 sec
+        Start 2597: range-replay-opt-out
+126/127 Test #2597: range-replay-opt-out ........................................................................   Passed    0.31 sec
+        Start 2598: range-replay-decline
+127/127 Test #2598: range-replay-decline ........................................................................   Passed    0.34 sec
+
+100% tests passed, 0 tests failed out of 127
+
+Label Time Summary:
+execution            =  11.22 sec*proc (16 tests)
+integration-tests    =  11.22 sec*proc (16 tests)
+range-replay         =  12.49 sec*proc (20 tests)
+samples              =   1.27 sec*proc (4 tests)
+unittests            =   0.98 sec*proc (107 tests)
+
+Total Test time (real) =  13.71 sec
+
+The following tests did not run:
+	1075 - tests.integration.execute.test-range-replay-local-context-pc-sampling-stop-after-0 (Skipped)
