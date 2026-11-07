@@ -91,6 +91,8 @@ def run_one(app, size, cfg, xnack, verify, passes, rep, outdir, gpu):
     if os.path.exists(rr_out):
         os.remove(rr_out)
     if use_tool:
+        # The apps resolve the range replay API at run time; preloading pins which SDK they find.
+        env["LD_PRELOAD"] = os.path.join(SDK_LIB, "librocprofiler-sdk.so.1")
         env["ROCP_TOOL_LIBRARIES"] = TOOL
         env["RR_PASSES"] = str(passes)
         env["RR_OUT"] = rr_out

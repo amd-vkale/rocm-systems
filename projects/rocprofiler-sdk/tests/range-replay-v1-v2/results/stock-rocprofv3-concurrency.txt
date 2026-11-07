@@ -1,0 +1,20 @@
+Stock rocprofv3 (ROCm 7.14.0, no range replay): rocprofv3 --pmc SQ_WAVES -- irregular-c <bench>
+Per-dispatch SQ_WAVES of the benchmark's own kernels (__omp_offloading_*), value -> dispatch count.
+GUPS dispatches launch 4864 waves, chase 1024, hist 1048576.
+
+One process at a time on GPU 7 (6 runs each):
+  gups   {4.0: 6, 4864.0: 48}
+  hist   {4.0: 6, 1048576.0: 48}
+
+Three processes at once, one per GPU (GPU 5 gups, GPU 6 gups, GPU 7 chase; 12 runs each):
+  5-gups   {4.0: 12, 4864.0: 96}
+  6-gups   {4.0: 12, 4864.0: 95, 12160.0: 1}
+  7-chase  {4.0: 12, 1024.0: 96}
+Range replay v2, three processes at once (RR_RECORD_LOG=1, packet mode, 4 passes, 12 runs per GPU):
+  rr-cc-5-gups:  382 value=4864; 1 value=7284; 1 value=8212;
+  rr-cc-6-gups:  380 value=4864; 1 value=6068; 1 value=6688; 2 value=9728;
+  rr-cc-7-chase:  383 value=1024; 1 value=2048;
+
+Range replay v2, one process at a time on GPU 7 (16 runs each):
+  gups:  512 value=4864;
+  chase:  512 value=1024;

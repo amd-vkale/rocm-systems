@@ -26,7 +26,7 @@ clone https://github.com/ANL-CESAR/RSBench.git "$WORK/RSBench" 34b6447
 rm -rf "$WORK/apps/xsbench-omp" "$WORK/apps/rsbench-omp"
 cp -r "$WORK/XSBench/openmp-offload" "$WORK/apps/xsbench-omp"
 cp -r "$WORK/RSBench/openmp-offload" "$WORK/apps/rsbench-omp"
-cp "$HERE/rr_app.h" "$WORK/apps/"
+cp "$HERE/rr_app.h" "$HERE/rr_rt.h" "$WORK/apps/"
 (cd "$WORK/apps/xsbench-omp" && patch -s -p2 < "$HERE/patches/xsbench-openmp-offload.patch")
 (cd "$WORK/apps/rsbench-omp" && patch -s -p2 < "$HERE/patches/rsbench-openmp-offload.patch")
 
@@ -38,8 +38,9 @@ OMPF="-fopenmp --offload-arch=$GPU_ARCH -O3 -std=gnu99"
 
 $CXX -D__HIP_PLATFORM_AMD__ -std=c++17 -O2 -fPIC -shared $INC "$HERE/rr_tool.cpp" $LIBS \
     -o "$WORK/tool/librr_tool.so"
-(cd "$WORK/apps/xsbench-omp" && $CC $OMPF $INC ./*.c -lm $LIBS -o "$WORK/bin/xsbench-omp-rr")
-(cd "$WORK/apps/rsbench-omp" && $CC $OMPF $INC ./*.c -lm $LIBS -o "$WORK/bin/rsbench-omp-rr")
+# The apps resolve the range replay API at run time (rr_rt.h) and do not link the SDK.
+(cd "$WORK/apps/xsbench-omp" && $CC $OMPF ./*.c -lm -ldl -o "$WORK/bin/xsbench-omp-rr")
+(cd "$WORK/apps/rsbench-omp" && $CC $OMPF ./*.c -lm -ldl -o "$WORK/bin/rsbench-omp-rr")
 (cd "$WORK/XSBench/openmp-offload" && $CC $OMPF ./*.c -lm -o "$WORK/bin/xsbench-omp-pristine")
 (cd "$WORK/RSBench/openmp-offload" && $CC $OMPF ./*.c -lm -o "$WORK/bin/rsbench-omp-pristine")
 echo "built into $WORK"

@@ -1,0 +1,19 @@
+ROCPROFILER_LOG_LEVEL=info, irregular-c chase, kernel range, packet mode, 4 passes, SQ_WAVES; one process on GPU 4
+== v1 run 1
+range replay: range 1 (8 dispatches) phases: lock+drain 0.017 ms, exit snapshot 31.047 ms (77988017 bytes in 30 regions), kernarg staging 0.033 ms (2048 bytes, allocated), 3 passes 11.352 ms, 3 restores 6.662 ms, verify off, exit restore 2.235 ms, window 51.352 ms
+[rr-tool] CLOSE {"range_id":1,"mode":"packet","passes_requested":4,"status":"REPLAYED","dispatch_count":8,"divergence_count":0,"range_ms":188.417,"pass_ms":[166.219,6.18126,5.94469,10.0722],...
+== v1 run 2
+range replay: range 1 (8 dispatches) phases: lock+drain 0.016 ms, exit snapshot 31.545 ms (77988017 bytes in 30 regions), kernarg staging 0.038 ms (2048 bytes, allocated), 3 passes 11.358 ms, 3 restores 6.719 ms, verify off, exit restore 2.244 ms, window 51.927 ms
+[rr-tool] CLOSE {"range_id":1,"mode":"packet","passes_requested":4,"status":"REPLAYED","dispatch_count":8,"divergence_count":0,"range_ms":190.342,"pass_ms":[167.64,6.204,5.96124,10.5369],...
+== v1 run 3
+range replay: range 1 (8 dispatches) phases: lock+drain 0.018 ms, exit snapshot 30.798 ms (77988017 bytes in 30 regions), kernarg staging 0.033 ms (2048 bytes, allocated), 3 passes 11.339 ms, 3 restores 6.675 ms, verify off, exit restore 2.242 ms, window 51.110 ms
+[rr-tool] CLOSE {"range_id":1,"mode":"packet","passes_requested":4,"status":"REPLAYED","dispatch_count":8,"divergence_count":0,"range_ms":187.414,"pass_ms":[165.231,6.16484,5.94184,10.0757],...
+== v2 run 1
+range replay: range 1 (8 dispatches) phases: lock+drain 0.018 ms, exit snapshot 31.190 ms (77988017 bytes in 30 regions), kernarg staging 0.036 ms (2048 bytes, allocated), 3 passes 24.846 ms, 3 restores 6.826 ms, verify off, exit restore 2.267 ms, window 65.189 ms
+[rr-tool] CLOSE {"range_id":1,"mode":"packet","passes_requested":4,"status":"REPLAYED","dispatch_count":8,"divergence_count":0,"range_ms":201.468,"pass_ms":[165.509,19.4668,6.2239,10.2681],...
+== v2 run 2
+range replay: range 1 (8 dispatches) phases: lock+drain 0.017 ms, exit snapshot 30.994 ms (77988017 bytes in 30 regions), kernarg staging 0.036 ms (2048 bytes, allocated), 3 passes 26.710 ms, 3 restores 6.765 ms, verify off, exit restore 2.249 ms, window 66.778 ms
+[rr-tool] CLOSE {"range_id":1,"mode":"packet","passes_requested":4,"status":"REPLAYED","dispatch_count":8,"divergence_count":0,"range_ms":201.294,"pass_ms":[163.573,21.3622,6.18883,10.1702],...
+== v2 run 3
+range replay: range 1 (8 dispatches) phases: lock+drain 0.023 ms, exit snapshot 48.787 ms (77988017 bytes in 30 regions), kernarg staging 0.050 ms (2048 bytes, allocated), 3 passes 32.353 ms, 3 restores 9.512 ms, verify off, exit restore 3.078 ms, window 93.815 ms
+[rr-tool] CLOSE {"range_id":1,"mode":"packet","passes_requested":4,"status":"REPLAYED","dispatch_count":8,"divergence_count":0,"range_ms":327.954,"pass_ms":[280.299,26.9085,7.40907,13.3378],...

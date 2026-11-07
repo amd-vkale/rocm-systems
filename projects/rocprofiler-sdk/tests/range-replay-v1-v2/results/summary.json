@@ -1,0 +1,3014 @@
+{
+ "c-chase|full|native": {
+  "app_ms": 3.542,
+  "ctr_consistent": null,
+  "ctr_sum": [],
+  "dispatches": [],
+  "hash_ok": 5,
+  "n": 5,
+  "ok": 5,
+  "overhead": 1.0,
+  "pass0_ms": null,
+  "replay_pass_ms": null,
+  "statuses": {
+   "-": 5
+  }
+ },
+ "c-chase|full|v1-host": {
+  "app_ms": null,
+  "ctr_consistent": null,
+  "ctr_sum": [],
+  "dispatches": [],
+  "hash_ok": null,
+  "n": 1,
+  "ok": 0,
+  "overhead": null,
+  "pass0_ms": null,
+  "replay_pass_ms": null,
+  "statuses": {
+   "NO-SDK-HOST": 1
+  }
+ },
+ "c-chase|full|v1-packet": {
+  "app_ms": 201.45,
+  "ctr_consistent": true,
+  "ctr_sum": [
+   8192
+  ],
+  "dispatches": [
+   8
+  ],
+  "hash_ok": 5,
+  "n": 5,
+  "ok": 5,
+  "overhead": 56.874647092038394,
+  "pass0_ms": 171.653,
+  "replay_pass_ms": 8.081573333333333,
+  "statuses": {
+   "REPLAYED": 5
+  }
+ },
+ "c-chase|full|v2-host": {
+  "app_ms": 159.921,
+  "ctr_consistent": true,
+  "ctr_sum": [
+   8192
+  ],
+  "dispatches": [
+   8
+  ],
+  "hash_ok": 5,
+  "n": 5,
+  "ok": 5,
+  "overhead": 45.14991530208921,
+  "pass0_ms": 136.48,
+  "replay_pass_ms": 5.334883333333334,
+  "statuses": {
+   "REPLAYED": 5
+  }
+ },
+ "c-chase|full|v2-host-notrack": {
+  "app_ms": 158.1045,
+  "ctr_consistent": true,
+  "ctr_sum": [
+   8192
+  ],
+  "dispatches": [
+   8
+  ],
+  "hash_ok": 0,
+  "n": 2,
+  "ok": 0,
+  "overhead": 44.637069452286845,
+  "pass0_ms": 137.562,
+  "replay_pass_ms": 5.3225999999999996,
+  "statuses": {
+   "REPLAYED": 2
+  }
+ },
+ "c-chase|full|v2-packet": {
+  "app_ms": 212.378,
+  "ctr_consistent": false,
+  "ctr_sum": [
+   8192
+  ],
+  "dispatches": [
+   8
+  ],
+  "hash_ok": 5,
+  "n": 5,
+  "ok": 5,
+  "overhead": 59.95990965556183,
+  "pass0_ms": 167.189,
+  "replay_pass_ms": 12.41263,
+  "statuses": {
+   "REPLAYED": 5
+  }
+ },
+ "c-chase|kernel|native": {
+  "app_ms": 3.5,
+  "ctr_consistent": null,
+  "ctr_sum": [],
+  "dispatches": [],
+  "hash_ok": 5,
+  "n": 5,
+  "ok": 5,
+  "overhead": 1.0,
+  "pass0_ms": null,
+  "replay_pass_ms": null,
+  "statuses": {
+   "-": 5
+  }
+ },
+ "c-chase|kernel|v1-host": {
+  "app_ms": null,
+  "ctr_consistent": null,
+  "ctr_sum": [],
+  "dispatches": [],
+  "hash_ok": null,
+  "n": 1,
+  "ok": 0,
+  "overhead": null,
+  "pass0_ms": null,
+  "replay_pass_ms": null,
+  "statuses": {
+   "NO-SDK-HOST": 1
+  }
+ },
+ "c-chase|kernel|v1-packet": {
+  "app_ms": 200.479,
+  "ctr_consistent": false,
+  "ctr_sum": [
+   8192
+  ],
+  "dispatches": [
+   8
+  ],
+  "hash_ok": 5,
+  "n": 5,
+  "ok": 5,
+  "overhead": 57.27971428571429,
+  "pass0_ms": 171.753,
+  "replay_pass_ms": 7.946033333333333,
+  "statuses": {
+   "REPLAYED": 5
+  }
+ },
+ "c-chase|kernel|v2-host": {
+  "app_ms": 160.782,
+  "ctr_consistent": true,
+  "ctr_sum": [
+   8192
+  ],
+  "dispatches": [
+   8
+  ],
+  "hash_ok": 5,
+  "n": 5,
+  "ok": 5,
+  "overhead": 45.937714285714286,
+  "pass0_ms": 138.268,
+  "replay_pass_ms": 5.367593333333334,
+  "statuses": {
+   "REPLAYED": 5
+  }
+ },
+ "c-chase|kernel|v2-packet": {
+  "app_ms": 208.726,
+  "ctr_consistent": true,
+  "ctr_sum": [
+   8192
+  ],
+  "dispatches": [
+   8
+  ],
+  "hash_ok": 5,
+  "n": 5,
+  "ok": 5,
+  "overhead": 59.636,
+  "pass0_ms": 166.907,
+  "replay_pass_ms": 12.369386666666667,
+  "statuses": {
+   "REPLAYED": 5
+  }
+ },
+ "c-gather|full|native": {
+  "app_ms": 15.254,
+  "ctr_consistent": null,
+  "ctr_sum": [],
+  "dispatches": [],
+  "hash_ok": 5,
+  "n": 5,
+  "ok": 5,
+  "overhead": 1.0,
+  "pass0_ms": null,
+  "replay_pass_ms": null,
+  "statuses": {
+   "-": 5
+  }
+ },
+ "c-gather|full|v1-host": {
+  "app_ms": null,
+  "ctr_consistent": null,
+  "ctr_sum": [],
+  "dispatches": [],
+  "hash_ok": null,
+  "n": 1,
+  "ok": 0,
+  "overhead": null,
+  "pass0_ms": null,
+  "replay_pass_ms": null,
+  "statuses": {
+   "NO-SDK-HOST": 1
+  }
+ },
+ "c-gather|full|v1-packet": {
+  "app_ms": 687.844,
+  "ctr_consistent": true,
+  "ctr_sum": [
+   2097150.0
+  ],
+  "dispatches": [
+   8
+  ],
+  "hash_ok": 5,
+  "n": 5,
+  "ok": 5,
+  "overhead": 45.09269699750885,
+  "pass0_ms": 538.77,
+  "replay_pass_ms": 35.02916666666667,
+  "statuses": {
+   "REPLAYED": 5
+  }
+ },
+ "c-gather|full|v2-host": {
+  "app_ms": 554.539,
+  "ctr_consistent": true,
+  "ctr_sum": [
+   2097150.0
+  ],
+  "dispatches": [
+   8
+  ],
+  "hash_ok": 5,
+  "n": 5,
+  "ok": 5,
+  "overhead": 36.353677723875705,
+  "pass0_ms": 403.191,
+  "replay_pass_ms": 30.9303,
+  "statuses": {
+   "REPLAYED": 5
+  }
+ },
+ "c-gather|full|v2-host-notrack": {
+  "app_ms": 428.58349999999996,
+  "ctr_consistent": true,
+  "ctr_sum": [
+   2097150.0
+  ],
+  "dispatches": [
+   8
+  ],
+  "hash_ok": 0,
+  "n": 2,
+  "ok": 0,
+  "overhead": 28.096466500590008,
+  "pass0_ms": 329.7015,
+  "replay_pass_ms": 23.177266666666668,
+  "statuses": {
+   "REPLAYED": 2
+  }
+ },
+ "c-gather|full|v2-packet": {
+  "app_ms": 705.195,
+  "ctr_consistent": true,
+  "ctr_sum": [
+   2097150.0
+  ],
+  "dispatches": [
+   8
+  ],
+  "hash_ok": 5,
+  "n": 5,
+  "ok": 5,
+  "overhead": 46.23016913596434,
+  "pass0_ms": 538.053,
+  "replay_pass_ms": 40.043033333333334,
+  "statuses": {
+   "REPLAYED": 5
+  }
+ },
+ "c-gather|kernel|native": {
+  "app_ms": 9.885,
+  "ctr_consistent": null,
+  "ctr_sum": [],
+  "dispatches": [],
+  "hash_ok": 5,
+  "n": 5,
+  "ok": 5,
+  "overhead": 1.0,
+  "pass0_ms": null,
+  "replay_pass_ms": null,
+  "statuses": {
+   "-": 5
+  }
+ },
+ "c-gather|kernel|v1-host": {
+  "app_ms": null,
+  "ctr_consistent": null,
+  "ctr_sum": [],
+  "dispatches": [],
+  "hash_ok": null,
+  "n": 1,
+  "ok": 0,
+  "overhead": null,
+  "pass0_ms": null,
+  "replay_pass_ms": null,
+  "statuses": {
+   "NO-SDK-HOST": 1
+  }
+ },
+ "c-gather|kernel|v1-packet": {
+  "app_ms": 675.883,
+  "ctr_consistent": true,
+  "ctr_sum": [
+   2097150.0
+  ],
+  "dispatches": [
+   8
+  ],
+  "hash_ok": 5,
+  "n": 5,
+  "ok": 5,
+  "overhead": 68.37460799190694,
+  "pass0_ms": 532.599,
+  "replay_pass_ms": 33.9993,
+  "statuses": {
+   "REPLAYED": 5
+  }
+ },
+ "c-gather|kernel|v2-host": {
+  "app_ms": 425.413,
+  "ctr_consistent": true,
+  "ctr_sum": [
+   2097150.0
+  ],
+  "dispatches": [
+   8
+  ],
+  "hash_ok": 5,
+  "n": 5,
+  "ok": 5,
+  "overhead": 43.03621648963075,
+  "pass0_ms": 329.552,
+  "replay_pass_ms": 18.7855,
+  "statuses": {
+   "REPLAYED": 5
+  }
+ },
+ "c-gather|kernel|v2-packet": {
+  "app_ms": 704.237,
+  "ctr_consistent": true,
+  "ctr_sum": [
+   2097150.0
+  ],
+  "dispatches": [
+   8
+  ],
+  "hash_ok": 5,
+  "n": 5,
+  "ok": 5,
+  "overhead": 71.24299443601416,
+  "pass0_ms": 529.583,
+  "replay_pass_ms": 39.91076666666667,
+  "statuses": {
+   "REPLAYED": 5
+  }
+ },
+ "c-gups|full|native": {
+  "app_ms": 22.672,
+  "ctr_consistent": null,
+  "ctr_sum": [],
+  "dispatches": [],
+  "hash_ok": 5,
+  "n": 5,
+  "ok": 5,
+  "overhead": 1.0,
+  "pass0_ms": null,
+  "replay_pass_ms": null,
+  "statuses": {
+   "-": 5
+  }
+ },
+ "c-gups|full|v1-host": {
+  "app_ms": null,
+  "ctr_consistent": null,
+  "ctr_sum": [],
+  "dispatches": [],
+  "hash_ok": null,
+  "n": 1,
+  "ok": 0,
+  "overhead": null,
+  "pass0_ms": null,
+  "replay_pass_ms": null,
+  "statuses": {
+   "NO-SDK-HOST": 1
+  }
+ },
+ "c-gups|full|v1-packet": {
+  "app_ms": 317.763,
+  "ctr_consistent": true,
+  "ctr_sum": [
+   38912
+  ],
+  "dispatches": [
+   8
+  ],
+  "hash_ok": 5,
+  "n": 5,
+  "ok": 5,
+  "overhead": 14.015658080451656,
+  "pass0_ms": 235.666,
+  "replay_pass_ms": 24.456333333333333,
+  "statuses": {
+   "REPLAYED": 5
+  }
+ },
+ "c-gups|full|v2-host": {
+  "app_ms": 367.532,
+  "ctr_consistent": true,
+  "ctr_sum": [
+   38912
+  ],
+  "dispatches": [
+   8
+  ],
+  "hash_ok": 5,
+  "n": 5,
+  "ok": 5,
+  "overhead": 16.210832745236413,
+  "pass0_ms": 247.053,
+  "replay_pass_ms": 32.44233333333334,
+  "statuses": {
+   "REPLAYED": 5
+  }
+ },
+ "c-gups|full|v2-host-notrack": {
+  "app_ms": 313.73,
+  "ctr_consistent": true,
+  "ctr_sum": [
+   38912
+  ],
+  "dispatches": [
+   8
+  ],
+  "hash_ok": 0,
+  "n": 2,
+  "ok": 0,
+  "overhead": 13.837773465067043,
+  "pass0_ms": 227.86599999999999,
+  "replay_pass_ms": 25.183666666666667,
+  "statuses": {
+   "REPLAYED": 2
+  }
+ },
+ "c-gups|full|v2-packet": {
+  "app_ms": 327.519,
+  "ctr_consistent": false,
+  "ctr_sum": [
+   38912
+  ],
+  "dispatches": [
+   8
+  ],
+  "hash_ok": 5,
+  "n": 5,
+  "ok": 5,
+  "overhead": 14.445968595624558,
+  "pass0_ms": 233.204,
+  "replay_pass_ms": 28.505566666666667,
+  "statuses": {
+   "REPLAYED": 5
+  }
+ },
+ "c-gups|kernel|native": {
+  "app_ms": 17.288,
+  "ctr_consistent": null,
+  "ctr_sum": [],
+  "dispatches": [],
+  "hash_ok": 5,
+  "n": 5,
+  "ok": 5,
+  "overhead": 1.0,
+  "pass0_ms": null,
+  "replay_pass_ms": null,
+  "statuses": {
+   "-": 5
+  }
+ },
+ "c-gups|kernel|v1-host": {
+  "app_ms": null,
+  "ctr_consistent": null,
+  "ctr_sum": [],
+  "dispatches": [],
+  "hash_ok": null,
+  "n": 1,
+  "ok": 0,
+  "overhead": null,
+  "pass0_ms": null,
+  "replay_pass_ms": null,
+  "statuses": {
+   "NO-SDK-HOST": 1
+  }
+ },
+ "c-gups|kernel|v1-packet": {
+  "app_ms": 317.971,
+  "ctr_consistent": false,
+  "ctr_sum": [
+   38912
+  ],
+  "dispatches": [
+   8
+  ],
+  "hash_ok": 5,
+  "n": 5,
+  "ok": 5,
+  "overhead": 18.392584451642758,
+  "pass0_ms": 230.391,
+  "replay_pass_ms": 24.056966666666668,
+  "statuses": {
+   "REPLAYED": 5
+  }
+ },
+ "c-gups|kernel|v2-host": {
+  "app_ms": 246.422,
+  "ctr_consistent": false,
+  "ctr_sum": [
+   38912
+  ],
+  "dispatches": [
+   8
+  ],
+  "hash_ok": 5,
+  "n": 5,
+  "ok": 5,
+  "overhead": 14.253933364183249,
+  "pass0_ms": 173.541,
+  "replay_pass_ms": 20.6307,
+  "statuses": {
+   "REPLAYED": 5
+  }
+ },
+ "c-gups|kernel|v2-packet": {
+  "app_ms": 324.561,
+  "ctr_consistent": false,
+  "ctr_sum": [
+   38912
+  ],
+  "dispatches": [
+   8
+  ],
+  "hash_ok": 5,
+  "n": 5,
+  "ok": 5,
+  "overhead": 18.77377371587228,
+  "pass0_ms": 227.194,
+  "replay_pass_ms": 28.917099999999998,
+  "statuses": {
+   "REPLAYED": 5
+  }
+ },
+ "c-hist|full|native": {
+  "app_ms": 292.618,
+  "ctr_consistent": null,
+  "ctr_sum": [],
+  "dispatches": [],
+  "hash_ok": 5,
+  "n": 5,
+  "ok": 5,
+  "overhead": 1.0,
+  "pass0_ms": null,
+  "replay_pass_ms": null,
+  "statuses": {
+   "-": 5
+  }
+ },
+ "c-hist|full|v1-host": {
+  "app_ms": null,
+  "ctr_consistent": null,
+  "ctr_sum": [],
+  "dispatches": [],
+  "hash_ok": null,
+  "n": 1,
+  "ok": 0,
+  "overhead": null,
+  "pass0_ms": null,
+  "replay_pass_ms": null,
+  "statuses": {
+   "NO-SDK-HOST": 1
+  }
+ },
+ "c-hist|full|v1-packet": {
+  "app_ms": 1534.286,
+  "ctr_consistent": false,
+  "ctr_sum": [
+   8388610.0,
+   8394560.0,
+   8401430.0
+  ],
+  "dispatches": [
+   8
+  ],
+  "hash_ok": 5,
+  "n": 5,
+  "ok": 5,
+  "overhead": 5.243306973596977,
+  "pass0_ms": 613.657,
+  "replay_pass_ms": 301.18466666666666,
+  "statuses": {
+   "REPLAYED": 5
+  }
+ },
+ "c-hist|full|v2-host": {
+  "app_ms": 1402.453,
+  "ctr_consistent": false,
+  "ctr_sum": [
+   8388610.0,
+   8407050.0
+  ],
+  "dispatches": [
+   8
+  ],
+  "hash_ok": 5,
+  "n": 5,
+  "ok": 5,
+  "overhead": 4.7927776145008165,
+  "pass0_ms": 504.472,
+  "replay_pass_ms": 293.48,
+  "statuses": {
+   "REPLAYED": 5
+  }
+ },
+ "c-hist|full|v2-host-notrack": {
+  "app_ms": 1463.4275,
+  "ctr_consistent": false,
+  "ctr_sum": [
+   8388610.0
+  ],
+  "dispatches": [
+   8
+  ],
+  "hash_ok": 0,
+  "n": 2,
+  "ok": 0,
+  "overhead": 5.00115338085832,
+  "pass0_ms": 563.9275,
+  "replay_pass_ms": 294.76750000000004,
+  "statuses": {
+   "REPLAYED": 2
+  }
+ },
+ "c-hist|full|v2-packet": {
+  "app_ms": 1543.714,
+  "ctr_consistent": false,
+  "ctr_sum": [
+   8388610.0,
+   8401100.0,
+   8408860.0
+  ],
+  "dispatches": [
+   8
+  ],
+  "hash_ok": 5,
+  "n": 5,
+  "ok": 5,
+  "overhead": 5.275526454285109,
+  "pass0_ms": 608.614,
+  "replay_pass_ms": 305.59566666666666,
+  "statuses": {
+   "REPLAYED": 5
+  }
+ },
+ "c-hist|kernel|native": {
+  "app_ms": 292.036,
+  "ctr_consistent": null,
+  "ctr_sum": [],
+  "dispatches": [],
+  "hash_ok": 5,
+  "n": 5,
+  "ok": 5,
+  "overhead": 1.0,
+  "pass0_ms": null,
+  "replay_pass_ms": null,
+  "statuses": {
+   "-": 5
+  }
+ },
+ "c-hist|kernel|v1-host": {
+  "app_ms": null,
+  "ctr_consistent": null,
+  "ctr_sum": [],
+  "dispatches": [],
+  "hash_ok": null,
+  "n": 1,
+  "ok": 0,
+  "overhead": null,
+  "pass0_ms": null,
+  "replay_pass_ms": null,
+  "statuses": {
+   "NO-SDK-HOST": 1
+  }
+ },
+ "c-hist|kernel|v1-packet": {
+  "app_ms": 1536.202,
+  "ctr_consistent": false,
+  "ctr_sum": [
+   8388610.0,
+   8395950.0
+  ],
+  "dispatches": [
+   8
+  ],
+  "hash_ok": 5,
+  "n": 5,
+  "ok": 5,
+  "overhead": 5.260317221164514,
+  "pass0_ms": 610.682,
+  "replay_pass_ms": 301.91633333333334,
+  "statuses": {
+   "REPLAYED": 5
+  }
+ },
+ "c-hist|kernel|v2-host": {
+  "app_ms": 1406.484,
+  "ctr_consistent": false,
+  "ctr_sum": [
+   8388610.0,
+   8400260.0
+  ],
+  "dispatches": [
+   8
+  ],
+  "hash_ok": 5,
+  "n": 5,
+  "ok": 5,
+  "overhead": 4.816132257666863,
+  "pass0_ms": 502.661,
+  "replay_pass_ms": 296.43333333333334,
+  "statuses": {
+   "REPLAYED": 5
+  }
+ },
+ "c-hist|kernel|v2-packet": {
+  "app_ms": 1546.159,
+  "ctr_consistent": false,
+  "ctr_sum": [
+   8388610.0,
+   8389910.0,
+   8392130.0,
+   8393040.0
+  ],
+  "dispatches": [
+   8
+  ],
+  "hash_ok": 5,
+  "n": 5,
+  "ok": 5,
+  "overhead": 5.294412332726103,
+  "pass0_ms": 609.081,
+  "replay_pass_ms": 306.26,
+  "statuses": {
+   "REPLAYED": 5
+  }
+ },
+ "c-rsbench|full|native": {
+  "app_ms": 108.0,
+  "ctr_consistent": null,
+  "ctr_sum": [],
+  "dispatches": [],
+  "hash_ok": 5,
+  "n": 5,
+  "ok": 5,
+  "overhead": 1.0,
+  "pass0_ms": null,
+  "replay_pass_ms": null,
+  "statuses": {
+   "-": 5
+  }
+ },
+ "c-rsbench|full|native-nomm": {
+  "app_ms": 97.0,
+  "ctr_consistent": null,
+  "ctr_sum": [],
+  "dispatches": [],
+  "hash_ok": 3,
+  "n": 3,
+  "ok": 3,
+  "overhead": 0.8981481481481481,
+  "pass0_ms": null,
+  "replay_pass_ms": null,
+  "statuses": {
+   "-": 3
+  }
+ },
+ "c-rsbench|full|v1-host": {
+  "app_ms": null,
+  "ctr_consistent": null,
+  "ctr_sum": [],
+  "dispatches": [],
+  "hash_ok": null,
+  "n": 1,
+  "ok": 0,
+  "overhead": null,
+  "pass0_ms": null,
+  "replay_pass_ms": null,
+  "statuses": {
+   "NO-SDK-HOST": 1
+  }
+ },
+ "c-rsbench|full|v1-packet": {
+  "app_ms": 202.0,
+  "ctr_consistent": null,
+  "ctr_sum": [],
+  "dispatches": [
+   1
+  ],
+  "hash_ok": 5,
+  "n": 5,
+  "ok": 5,
+  "overhead": 1.8703703703703705,
+  "pass0_ms": 198.692,
+  "replay_pass_ms": null,
+  "statuses": {
+   "MEMORY_COPY_IN_RANGE": 5
+  }
+ },
+ "c-rsbench|full|v1-packet-nomm": {
+  "app_ms": 204.0,
+  "ctr_consistent": null,
+  "ctr_sum": [],
+  "dispatches": [
+   1
+  ],
+  "hash_ok": 3,
+  "n": 3,
+  "ok": 3,
+  "overhead": 1.8888888888888888,
+  "pass0_ms": 201.526,
+  "replay_pass_ms": null,
+  "statuses": {
+   "MEMORY_COPY_IN_RANGE": 3
+  }
+ },
+ "c-rsbench|full|v2-host": {
+  "app_ms": 200.0,
+  "ctr_consistent": null,
+  "ctr_sum": [],
+  "dispatches": [
+   2
+  ],
+  "hash_ok": 5,
+  "n": 5,
+  "ok": 5,
+  "overhead": 1.8518518518518519,
+  "pass0_ms": 196.934,
+  "replay_pass_ms": null,
+  "statuses": {
+   "ALLOCATION_CHANGED_IN_RANGE": 5
+  }
+ },
+ "c-rsbench|full|v2-host-nomm": {
+  "app_ms": 420.0,
+  "ctr_consistent": false,
+  "ctr_sum": [
+   4868
+  ],
+  "dispatches": [
+   2
+  ],
+  "hash_ok": 3,
+  "n": 3,
+  "ok": 3,
+  "overhead": 3.888888888888889,
+  "pass0_ms": 196.415,
+  "replay_pass_ms": 74.02266666666667,
+  "statuses": {
+   "REPLAYED": 3
+  }
+ },
+ "c-rsbench|full|v2-host-notrack": {
+  "app_ms": 199.5,
+  "ctr_consistent": null,
+  "ctr_sum": [],
+  "dispatches": [
+   2
+  ],
+  "hash_ok": 2,
+  "n": 2,
+  "ok": 2,
+  "overhead": 1.8472222222222223,
+  "pass0_ms": 197.106,
+  "replay_pass_ms": null,
+  "statuses": {
+   "ALLOCATION_CHANGED_IN_RANGE": 2
+  }
+ },
+ "c-rsbench|full|v2-packet": {
+  "app_ms": 202.0,
+  "ctr_consistent": null,
+  "ctr_sum": [],
+  "dispatches": [
+   1
+  ],
+  "hash_ok": 5,
+  "n": 5,
+  "ok": 5,
+  "overhead": 1.8703703703703705,
+  "pass0_ms": 198.712,
+  "replay_pass_ms": null,
+  "statuses": {
+   "MEMORY_COPY_IN_RANGE": 5
+  }
+ },
+ "c-rsbench|full|v2-packet-nomm": {
+  "app_ms": 204.0,
+  "ctr_consistent": null,
+  "ctr_sum": [],
+  "dispatches": [
+   1
+  ],
+  "hash_ok": 3,
+  "n": 3,
+  "ok": 3,
+  "overhead": 1.8888888888888888,
+  "pass0_ms": 200.552,
+  "replay_pass_ms": null,
+  "statuses": {
+   "MEMORY_COPY_IN_RANGE": 3
+  }
+ },
+ "c-rsbench|kernel|native": {
+  "app_ms": 97.0,
+  "ctr_consistent": null,
+  "ctr_sum": [],
+  "dispatches": [],
+  "hash_ok": 5,
+  "n": 5,
+  "ok": 5,
+  "overhead": 1.0,
+  "pass0_ms": null,
+  "replay_pass_ms": null,
+  "statuses": {
+   "-": 5
+  }
+ },
+ "c-rsbench|kernel|native-nomm": {
+  "app_ms": 97.0,
+  "ctr_consistent": null,
+  "ctr_sum": [],
+  "dispatches": [],
+  "hash_ok": 3,
+  "n": 3,
+  "ok": 3,
+  "overhead": 1.0,
+  "pass0_ms": null,
+  "replay_pass_ms": null,
+  "statuses": {
+   "-": 3
+  }
+ },
+ "c-rsbench|kernel|v1-host": {
+  "app_ms": null,
+  "ctr_consistent": null,
+  "ctr_sum": [],
+  "dispatches": [],
+  "hash_ok": null,
+  "n": 1,
+  "ok": 0,
+  "overhead": null,
+  "pass0_ms": null,
+  "replay_pass_ms": null,
+  "statuses": {
+   "NO-SDK-HOST": 1
+  }
+ },
+ "c-rsbench|kernel|v1-packet": {
+  "app_ms": 440.0,
+  "ctr_consistent": false,
+  "ctr_sum": [
+   4864,
+   14592
+  ],
+  "dispatches": [
+   1
+  ],
+  "hash_ok": 5,
+  "n": 5,
+  "ok": 5,
+  "overhead": 4.536082474226804,
+  "pass0_ms": 229.504,
+  "replay_pass_ms": 52.63163333333333,
+  "statuses": {
+   "REPLAYED": 5
+  }
+ },
+ "c-rsbench|kernel|v1-packet-nomm": {
+  "app_ms": 349.0,
+  "ctr_consistent": null,
+  "ctr_sum": [],
+  "dispatches": [
+   1
+  ],
+  "hash_ok": 3,
+  "n": 3,
+  "ok": 3,
+  "overhead": 3.597938144329897,
+  "pass0_ms": 285.639,
+  "replay_pass_ms": null,
+  "statuses": {
+   "ALLOCATION_CHANGED_IN_RANGE": 3
+  }
+ },
+ "c-rsbench|kernel|v2-host": {
+  "app_ms": 242.0,
+  "ctr_consistent": null,
+  "ctr_sum": [],
+  "dispatches": [
+   1
+  ],
+  "hash_ok": 5,
+  "n": 5,
+  "ok": 5,
+  "overhead": 2.4948453608247423,
+  "pass0_ms": 183.376,
+  "replay_pass_ms": null,
+  "statuses": {
+   "ALLOCATION_CHANGED_IN_RANGE": 5
+  }
+ },
+ "c-rsbench|kernel|v2-host-nomm": {
+  "app_ms": 414.0,
+  "ctr_consistent": false,
+  "ctr_sum": [
+   4864
+  ],
+  "dispatches": [
+   1
+  ],
+  "hash_ok": 3,
+  "n": 3,
+  "ok": 3,
+  "overhead": 4.268041237113402,
+  "pass0_ms": 204.616,
+  "replay_pass_ms": 49.68213333333333,
+  "statuses": {
+   "REPLAYED": 3
+  }
+ },
+ "c-rsbench|kernel|v2-packet": {
+  "app_ms": 455.0,
+  "ctr_consistent": true,
+  "ctr_sum": [
+   4864
+  ],
+  "dispatches": [
+   1
+  ],
+  "hash_ok": 5,
+  "n": 5,
+  "ok": 5,
+  "overhead": 4.690721649484536,
+  "pass0_ms": 227.726,
+  "replay_pass_ms": 57.51163333333333,
+  "statuses": {
+   "REPLAYED": 5
+  }
+ },
+ "c-rsbench|kernel|v2-packet-nomm": {
+  "app_ms": 244.0,
+  "ctr_consistent": null,
+  "ctr_sum": [],
+  "dispatches": [
+   1
+  ],
+  "hash_ok": 3,
+  "n": 3,
+  "ok": 3,
+  "overhead": 2.515463917525773,
+  "pass0_ms": 185.331,
+  "replay_pass_ms": null,
+  "statuses": {
+   "ALLOCATION_CHANGED_IN_RANGE": 3
+  }
+ },
+ "c-spmv|full|native": {
+  "app_ms": 9.034,
+  "ctr_consistent": null,
+  "ctr_sum": [],
+  "dispatches": [],
+  "hash_ok": 5,
+  "n": 5,
+  "ok": 5,
+  "overhead": 1.0,
+  "pass0_ms": null,
+  "replay_pass_ms": null,
+  "statuses": {
+   "-": 5
+  }
+ },
+ "c-spmv|full|v1-host": {
+  "app_ms": null,
+  "ctr_consistent": null,
+  "ctr_sum": [],
+  "dispatches": [],
+  "hash_ok": null,
+  "n": 1,
+  "ok": 0,
+  "overhead": null,
+  "pass0_ms": null,
+  "replay_pass_ms": null,
+  "statuses": {
+   "NO-SDK-HOST": 1
+  }
+ },
+ "c-spmv|full|v1-packet": {
+  "app_ms": 364.11,
+  "ctr_consistent": true,
+  "ctr_sum": [
+   262144
+  ],
+  "dispatches": [
+   16
+  ],
+  "hash_ok": 5,
+  "n": 5,
+  "ok": 5,
+  "overhead": 40.30440557892406,
+  "pass0_ms": 289.637,
+  "replay_pass_ms": 20.797933333333333,
+  "statuses": {
+   "REPLAYED": 5
+  }
+ },
+ "c-spmv|full|v2-host": {
+  "app_ms": 258.59,
+  "ctr_consistent": true,
+  "ctr_sum": [
+   262144
+  ],
+  "dispatches": [
+   16
+  ],
+  "hash_ok": 5,
+  "n": 5,
+  "ok": 5,
+  "overhead": 28.624086783263223,
+  "pass0_ms": 202.96,
+  "replay_pass_ms": 14.211573333333334,
+  "statuses": {
+   "REPLAYED": 5
+  }
+ },
+ "c-spmv|full|v2-host-notrack": {
+  "app_ms": 255.1345,
+  "ctr_consistent": true,
+  "ctr_sum": [
+   262144
+  ],
+  "dispatches": [
+   16
+  ],
+  "hash_ok": 0,
+  "n": 2,
+  "ok": 0,
+  "overhead": 28.241587336727914,
+  "pass0_ms": 202.606,
+  "replay_pass_ms": 12.718575000000001,
+  "statuses": {
+   "REPLAYED": 2
+  }
+ },
+ "c-spmv|full|v2-packet": {
+  "app_ms": 379.147,
+  "ctr_consistent": true,
+  "ctr_sum": [
+   262144
+  ],
+  "dispatches": [
+   16
+  ],
+  "hash_ok": 5,
+  "n": 5,
+  "ok": 5,
+  "overhead": 41.968895284480844,
+  "pass0_ms": 286.863,
+  "replay_pass_ms": 24.419166666666666,
+  "statuses": {
+   "REPLAYED": 5
+  }
+ },
+ "c-spmv|kernel|native": {
+  "app_ms": 8.646,
+  "ctr_consistent": null,
+  "ctr_sum": [],
+  "dispatches": [],
+  "hash_ok": 5,
+  "n": 5,
+  "ok": 5,
+  "overhead": 1.0,
+  "pass0_ms": null,
+  "replay_pass_ms": null,
+  "statuses": {
+   "-": 5
+  }
+ },
+ "c-spmv|kernel|v1-host": {
+  "app_ms": null,
+  "ctr_consistent": null,
+  "ctr_sum": [],
+  "dispatches": [],
+  "hash_ok": null,
+  "n": 1,
+  "ok": 0,
+  "overhead": null,
+  "pass0_ms": null,
+  "replay_pass_ms": null,
+  "statuses": {
+   "NO-SDK-HOST": 1
+  }
+ },
+ "c-spmv|kernel|v1-packet": {
+  "app_ms": 378.539,
+  "ctr_consistent": true,
+  "ctr_sum": [
+   262144
+  ],
+  "dispatches": [
+   16
+  ],
+  "hash_ok": 5,
+  "n": 5,
+  "ok": 5,
+  "overhead": 43.78198010640758,
+  "pass0_ms": 290.075,
+  "replay_pass_ms": 21.287433333333333,
+  "statuses": {
+   "REPLAYED": 5
+  }
+ },
+ "c-spmv|kernel|v2-host": {
+  "app_ms": 258.525,
+  "ctr_consistent": true,
+  "ctr_sum": [
+   262144
+  ],
+  "dispatches": [
+   16
+  ],
+  "hash_ok": 5,
+  "n": 5,
+  "ok": 5,
+  "overhead": 29.901110340041633,
+  "pass0_ms": 199.225,
+  "replay_pass_ms": 13.499616666666666,
+  "statuses": {
+   "REPLAYED": 5
+  }
+ },
+ "c-spmv|kernel|v2-packet": {
+  "app_ms": 377.785,
+  "ctr_consistent": true,
+  "ctr_sum": [
+   262144
+  ],
+  "dispatches": [
+   16
+  ],
+  "hash_ok": 5,
+  "n": 5,
+  "ok": 5,
+  "overhead": 43.69477214897062,
+  "pass0_ms": 287.296,
+  "replay_pass_ms": 25.377633333333332,
+  "statuses": {
+   "REPLAYED": 5
+  }
+ },
+ "c-xsbench|full|native": {
+  "app_ms": 100.0,
+  "ctr_consistent": null,
+  "ctr_sum": [],
+  "dispatches": [],
+  "hash_ok": 5,
+  "n": 5,
+  "ok": 5,
+  "overhead": 1.0,
+  "pass0_ms": null,
+  "replay_pass_ms": null,
+  "statuses": {
+   "-": 5
+  }
+ },
+ "c-xsbench|full|native-nomm": {
+  "app_ms": 103.0,
+  "ctr_consistent": null,
+  "ctr_sum": [],
+  "dispatches": [],
+  "hash_ok": 3,
+  "n": 3,
+  "ok": 3,
+  "overhead": 1.03,
+  "pass0_ms": null,
+  "replay_pass_ms": null,
+  "statuses": {
+   "-": 3
+  }
+ },
+ "c-xsbench|full|v1-host": {
+  "app_ms": null,
+  "ctr_consistent": null,
+  "ctr_sum": [],
+  "dispatches": [],
+  "hash_ok": null,
+  "n": 1,
+  "ok": 0,
+  "overhead": null,
+  "pass0_ms": null,
+  "replay_pass_ms": null,
+  "statuses": {
+   "NO-SDK-HOST": 1
+  }
+ },
+ "c-xsbench|full|v1-packet": {
+  "app_ms": 204.0,
+  "ctr_consistent": null,
+  "ctr_sum": [],
+  "dispatches": [
+   1
+  ],
+  "hash_ok": 5,
+  "n": 5,
+  "ok": 5,
+  "overhead": 2.04,
+  "pass0_ms": 201.447,
+  "replay_pass_ms": null,
+  "statuses": {
+   "MEMORY_COPY_IN_RANGE": 5
+  }
+ },
+ "c-xsbench|full|v1-packet-nomm": {
+  "app_ms": 213.0,
+  "ctr_consistent": null,
+  "ctr_sum": [],
+  "dispatches": [
+   1
+  ],
+  "hash_ok": 3,
+  "n": 3,
+  "ok": 3,
+  "overhead": 2.13,
+  "pass0_ms": 209.42,
+  "replay_pass_ms": null,
+  "statuses": {
+   "MEMORY_COPY_IN_RANGE": 3
+  }
+ },
+ "c-xsbench|full|v2-host": {
+  "app_ms": 205.0,
+  "ctr_consistent": null,
+  "ctr_sum": [],
+  "dispatches": [
+   2
+  ],
+  "hash_ok": 5,
+  "n": 5,
+  "ok": 5,
+  "overhead": 2.05,
+  "pass0_ms": 202.338,
+  "replay_pass_ms": null,
+  "statuses": {
+   "ALLOCATION_CHANGED_IN_RANGE": 5
+  }
+ },
+ "c-xsbench|full|v2-host-nomm": {
+  "app_ms": 407.0,
+  "ctr_consistent": false,
+  "ctr_sum": [
+   4868
+  ],
+  "dispatches": [
+   2
+  ],
+  "hash_ok": 3,
+  "n": 3,
+  "ok": 3,
+  "overhead": 4.07,
+  "pass0_ms": 207.934,
+  "replay_pass_ms": 63.0181,
+  "statuses": {
+   "REPLAYED": 3
+  }
+ },
+ "c-xsbench|full|v2-host-notrack": {
+  "app_ms": 203.5,
+  "ctr_consistent": null,
+  "ctr_sum": [],
+  "dispatches": [
+   2
+  ],
+  "hash_ok": 2,
+  "n": 2,
+  "ok": 2,
+  "overhead": 2.035,
+  "pass0_ms": 201.1395,
+  "replay_pass_ms": null,
+  "statuses": {
+   "ALLOCATION_CHANGED_IN_RANGE": 2
+  }
+ },
+ "c-xsbench|full|v2-packet": {
+  "app_ms": 204.0,
+  "ctr_consistent": null,
+  "ctr_sum": [],
+  "dispatches": [
+   1
+  ],
+  "hash_ok": 5,
+  "n": 5,
+  "ok": 5,
+  "overhead": 2.04,
+  "pass0_ms": 201.072,
+  "replay_pass_ms": null,
+  "statuses": {
+   "MEMORY_COPY_IN_RANGE": 5
+  }
+ },
+ "c-xsbench|full|v2-packet-nomm": {
+  "app_ms": 205.0,
+  "ctr_consistent": null,
+  "ctr_sum": [],
+  "dispatches": [
+   1
+  ],
+  "hash_ok": 3,
+  "n": 3,
+  "ok": 3,
+  "overhead": 2.05,
+  "pass0_ms": 203.58,
+  "replay_pass_ms": null,
+  "statuses": {
+   "MEMORY_COPY_IN_RANGE": 3
+  }
+ },
+ "c-xsbench|kernel|native": {
+  "app_ms": 99.0,
+  "ctr_consistent": null,
+  "ctr_sum": [],
+  "dispatches": [],
+  "hash_ok": 5,
+  "n": 5,
+  "ok": 5,
+  "overhead": 1.0,
+  "pass0_ms": null,
+  "replay_pass_ms": null,
+  "statuses": {
+   "-": 5
+  }
+ },
+ "c-xsbench|kernel|native-nomm": {
+  "app_ms": 103.0,
+  "ctr_consistent": null,
+  "ctr_sum": [],
+  "dispatches": [],
+  "hash_ok": 3,
+  "n": 3,
+  "ok": 3,
+  "overhead": 1.0404040404040404,
+  "pass0_ms": null,
+  "replay_pass_ms": null,
+  "statuses": {
+   "-": 3
+  }
+ },
+ "c-xsbench|kernel|v1-host": {
+  "app_ms": null,
+  "ctr_consistent": null,
+  "ctr_sum": [],
+  "dispatches": [],
+  "hash_ok": null,
+  "n": 1,
+  "ok": 0,
+  "overhead": null,
+  "pass0_ms": null,
+  "replay_pass_ms": null,
+  "statuses": {
+   "NO-SDK-HOST": 1
+  }
+ },
+ "c-xsbench|kernel|v1-packet": {
+  "app_ms": 636.0,
+  "ctr_consistent": false,
+  "ctr_sum": [
+   4864
+  ],
+  "dispatches": [
+   1
+  ],
+  "hash_ok": 5,
+  "n": 5,
+  "ok": 5,
+  "overhead": 6.424242424242424,
+  "pass0_ms": 433.457,
+  "replay_pass_ms": 33.82833333333333,
+  "statuses": {
+   "REPLAYED": 5
+  }
+ },
+ "c-xsbench|kernel|v1-packet-nomm": {
+  "app_ms": 372.0,
+  "ctr_consistent": null,
+  "ctr_sum": [],
+  "dispatches": [
+   1
+  ],
+  "hash_ok": 3,
+  "n": 3,
+  "ok": 3,
+  "overhead": 3.757575757575758,
+  "pass0_ms": 272.696,
+  "replay_pass_ms": null,
+  "statuses": {
+   "ALLOCATION_CHANGED_IN_RANGE": 3
+  }
+ },
+ "c-xsbench|kernel|v2-host": {
+  "app_ms": 376.0,
+  "ctr_consistent": null,
+  "ctr_sum": [],
+  "dispatches": [
+   1
+  ],
+  "hash_ok": 5,
+  "n": 5,
+  "ok": 5,
+  "overhead": 3.797979797979798,
+  "pass0_ms": 270.337,
+  "replay_pass_ms": null,
+  "statuses": {
+   "ALLOCATION_CHANGED_IN_RANGE": 5
+  }
+ },
+ "c-xsbench|kernel|v2-host-nomm": {
+  "app_ms": 471.0,
+  "ctr_consistent": false,
+  "ctr_sum": [
+   4864
+  ],
+  "dispatches": [
+   1
+  ],
+  "hash_ok": 3,
+  "n": 3,
+  "ok": 3,
+  "overhead": 4.757575757575758,
+  "pass0_ms": 285.912,
+  "replay_pass_ms": 22.8071,
+  "statuses": {
+   "REPLAYED": 3
+  }
+ },
+ "c-xsbench|kernel|v2-packet": {
+  "app_ms": 653.0,
+  "ctr_consistent": false,
+  "ctr_sum": [
+   4864
+  ],
+  "dispatches": [
+   1
+  ],
+  "hash_ok": 5,
+  "n": 5,
+  "ok": 5,
+  "overhead": 6.595959595959596,
+  "pass0_ms": 431.868,
+  "replay_pass_ms": 37.75626666666667,
+  "statuses": {
+   "REPLAYED": 5
+  }
+ },
+ "c-xsbench|kernel|v2-packet-nomm": {
+  "app_ms": 383.0,
+  "ctr_consistent": null,
+  "ctr_sum": [],
+  "dispatches": [
+   1
+  ],
+  "hash_ok": 3,
+  "n": 3,
+  "ok": 3,
+  "overhead": 3.8686868686868685,
+  "pass0_ms": 271.357,
+  "replay_pass_ms": null,
+  "statuses": {
+   "ALLOCATION_CHANGED_IN_RANGE": 3
+  }
+ },
+ "f-babel-triad|kernel|native": {
+  "app_ms": 4.763,
+  "ctr_consistent": null,
+  "ctr_sum": [],
+  "dispatches": [],
+  "hash_ok": null,
+  "n": 5,
+  "ok": 5,
+  "overhead": 1.0,
+  "pass0_ms": null,
+  "replay_pass_ms": null,
+  "statuses": {
+   "-": 5
+  }
+ },
+ "f-babel-triad|kernel|v1-host": {
+  "app_ms": null,
+  "ctr_consistent": null,
+  "ctr_sum": [],
+  "dispatches": [],
+  "hash_ok": null,
+  "n": 1,
+  "ok": 0,
+  "overhead": null,
+  "pass0_ms": null,
+  "replay_pass_ms": null,
+  "statuses": {
+   "NO-SDK-HOST": 1
+  }
+ },
+ "f-babel-triad|kernel|v1-packet": {
+  "app_ms": 940.525,
+  "ctr_consistent": true,
+  "ctr_sum": [
+   97280
+  ],
+  "dispatches": [
+   20
+  ],
+  "hash_ok": null,
+  "n": 5,
+  "ok": 5,
+  "overhead": 197.46483308838967,
+  "pass0_ms": 749.27,
+  "replay_pass_ms": 42.69753333333334,
+  "statuses": {
+   "REPLAYED": 5
+  }
+ },
+ "f-babel-triad|kernel|v2-host": {
+  "app_ms": 542.316,
+  "ctr_consistent": true,
+  "ctr_sum": [
+   97280
+  ],
+  "dispatches": [
+   20
+  ],
+  "hash_ok": null,
+  "n": 5,
+  "ok": 5,
+  "overhead": 113.86017216040311,
+  "pass0_ms": 434.962,
+  "replay_pass_ms": 18.217736666666667,
+  "statuses": {
+   "REPLAYED": 5
+  }
+ },
+ "f-babel-triad|kernel|v2-packet": {
+  "app_ms": 932.276,
+  "ctr_consistent": false,
+  "ctr_sum": [
+   97280
+  ],
+  "dispatches": [
+   20
+  ],
+  "hash_ok": null,
+  "n": 5,
+  "ok": 5,
+  "overhead": 195.7329414234726,
+  "pass0_ms": 747.581,
+  "replay_pass_ms": 43.25756666666666,
+  "statuses": {
+   "REPLAYED": 5
+  }
+ },
+ "f-babelstream|kernel|native": {
+  "app_ms": 63.833,
+  "ctr_consistent": null,
+  "ctr_sum": [],
+  "dispatches": [],
+  "hash_ok": null,
+  "n": 5,
+  "ok": 5,
+  "overhead": 1.0,
+  "pass0_ms": null,
+  "replay_pass_ms": null,
+  "statuses": {
+   "-": 5
+  }
+ },
+ "f-babelstream|kernel|native-nomm": {
+  "app_ms": 64.715,
+  "ctr_consistent": null,
+  "ctr_sum": [],
+  "dispatches": [],
+  "hash_ok": null,
+  "n": 3,
+  "ok": 3,
+  "overhead": 1.0138173045290055,
+  "pass0_ms": null,
+  "replay_pass_ms": null,
+  "statuses": {
+   "-": 3
+  }
+ },
+ "f-babelstream|kernel|v1-host": {
+  "app_ms": null,
+  "ctr_consistent": null,
+  "ctr_sum": [],
+  "dispatches": [],
+  "hash_ok": null,
+  "n": 1,
+  "ok": 0,
+  "overhead": null,
+  "pass0_ms": null,
+  "replay_pass_ms": null,
+  "statuses": {
+   "NO-SDK-HOST": 1
+  }
+ },
+ "f-babelstream|kernel|v1-packet": {
+  "app_ms": 545.378,
+  "ctr_consistent": null,
+  "ctr_sum": [],
+  "dispatches": [
+   4
+  ],
+  "hash_ok": null,
+  "n": 5,
+  "ok": 5,
+  "overhead": 8.543825294126863,
+  "pass0_ms": 476.3,
+  "replay_pass_ms": null,
+  "statuses": {
+   "MEMORY_COPY_IN_RANGE": 5
+  }
+ },
+ "f-babelstream|kernel|v1-packet-nomm": {
+  "app_ms": 528.81,
+  "ctr_consistent": null,
+  "ctr_sum": [],
+  "dispatches": [
+   4
+  ],
+  "hash_ok": null,
+  "n": 3,
+  "ok": 3,
+  "overhead": 8.284273024924412,
+  "pass0_ms": 481.326,
+  "replay_pass_ms": null,
+  "statuses": {
+   "MEMORY_COPY_IN_RANGE": 3
+  }
+ },
+ "f-babelstream|kernel|v2-host": {
+  "app_ms": 558.389,
+  "ctr_consistent": null,
+  "ctr_sum": [],
+  "dispatches": [
+   100
+  ],
+  "hash_ok": null,
+  "n": 5,
+  "ok": 5,
+  "overhead": 8.747654034746919,
+  "pass0_ms": 488.517,
+  "replay_pass_ms": null,
+  "statuses": {
+   "ALLOCATION_CHANGED_IN_RANGE": 5
+  }
+ },
+ "f-babelstream|kernel|v2-host-nomm": {
+  "app_ms": 690.476,
+  "ctr_consistent": true,
+  "ctr_sum": [
+   486400
+  ],
+  "dispatches": [
+   100
+  ],
+  "hash_ok": null,
+  "n": 3,
+  "ok": 3,
+  "overhead": 10.816912882051604,
+  "pass0_ms": 514.55,
+  "replay_pass_ms": 35.3003,
+  "statuses": {
+   "REPLAYED": 3
+  }
+ },
+ "f-babelstream|kernel|v2-packet": {
+  "app_ms": 544.112,
+  "ctr_consistent": null,
+  "ctr_sum": [],
+  "dispatches": [
+   4
+  ],
+  "hash_ok": null,
+  "n": 5,
+  "ok": 5,
+  "overhead": 8.52399229238795,
+  "pass0_ms": 477.708,
+  "replay_pass_ms": null,
+  "statuses": {
+   "MEMORY_COPY_IN_RANGE": 5
+  }
+ },
+ "f-babelstream|kernel|v2-packet-nomm": {
+  "app_ms": 531.101,
+  "ctr_consistent": null,
+  "ctr_sum": [],
+  "dispatches": [
+   4
+  ],
+  "hash_ok": null,
+  "n": 3,
+  "ok": 3,
+  "overhead": 8.320163551767894,
+  "pass0_ms": 479.233,
+  "replay_pass_ms": null,
+  "statuses": {
+   "MEMORY_COPY_IN_RANGE": 3
+  }
+ },
+ "f-chase|full|native": {
+  "app_ms": 3.757,
+  "ctr_consistent": null,
+  "ctr_sum": [],
+  "dispatches": [],
+  "hash_ok": null,
+  "n": 5,
+  "ok": 5,
+  "overhead": 1.0,
+  "pass0_ms": null,
+  "replay_pass_ms": null,
+  "statuses": {
+   "-": 5
+  }
+ },
+ "f-chase|full|v1-host": {
+  "app_ms": null,
+  "ctr_consistent": null,
+  "ctr_sum": [],
+  "dispatches": [],
+  "hash_ok": null,
+  "n": 1,
+  "ok": 0,
+  "overhead": null,
+  "pass0_ms": null,
+  "replay_pass_ms": null,
+  "statuses": {
+   "NO-SDK-HOST": 1
+  }
+ },
+ "f-chase|full|v1-packet": {
+  "app_ms": 197.702,
+  "ctr_consistent": true,
+  "ctr_sum": [
+   8192
+  ],
+  "dispatches": [
+   8
+  ],
+  "hash_ok": null,
+  "n": 5,
+  "ok": 5,
+  "overhead": 52.622305030609525,
+  "pass0_ms": 169.112,
+  "replay_pass_ms": 8.162026666666666,
+  "statuses": {
+   "REPLAYED": 5
+  }
+ },
+ "f-chase|full|v2-host": {
+  "app_ms": 156.802,
+  "ctr_consistent": true,
+  "ctr_sum": [
+   8192
+  ],
+  "dispatches": [
+   8
+  ],
+  "hash_ok": null,
+  "n": 5,
+  "ok": 5,
+  "overhead": 41.73595954218791,
+  "pass0_ms": 134.749,
+  "replay_pass_ms": 5.788786666666667,
+  "statuses": {
+   "REPLAYED": 5
+  }
+ },
+ "f-chase|full|v2-host-notrack": {
+  "app_ms": 162.38400000000001,
+  "ctr_consistent": true,
+  "ctr_sum": [
+   8192
+  ],
+  "dispatches": [
+   8
+  ],
+  "hash_ok": null,
+  "n": 2,
+  "ok": 0,
+  "overhead": 43.22171945701358,
+  "pass0_ms": 140.49099999999999,
+  "replay_pass_ms": 5.779686666666667,
+  "statuses": {
+   "REPLAYED": 2
+  }
+ },
+ "f-chase|full|v2-packet": {
+  "app_ms": 212.211,
+  "ctr_consistent": true,
+  "ctr_sum": [
+   8192
+  ],
+  "dispatches": [
+   8
+  ],
+  "hash_ok": null,
+  "n": 5,
+  "ok": 5,
+  "overhead": 56.484162895927604,
+  "pass0_ms": 167.959,
+  "replay_pass_ms": 13.186446666666667,
+  "statuses": {
+   "REPLAYED": 5
+  }
+ },
+ "f-chase|kernel|native": {
+  "app_ms": 3.495,
+  "ctr_consistent": null,
+  "ctr_sum": [],
+  "dispatches": [],
+  "hash_ok": null,
+  "n": 5,
+  "ok": 5,
+  "overhead": 1.0,
+  "pass0_ms": null,
+  "replay_pass_ms": null,
+  "statuses": {
+   "-": 5
+  }
+ },
+ "f-chase|kernel|v1-host": {
+  "app_ms": null,
+  "ctr_consistent": null,
+  "ctr_sum": [],
+  "dispatches": [],
+  "hash_ok": null,
+  "n": 1,
+  "ok": 0,
+  "overhead": null,
+  "pass0_ms": null,
+  "replay_pass_ms": null,
+  "statuses": {
+   "NO-SDK-HOST": 1
+  }
+ },
+ "f-chase|kernel|v1-packet": {
+  "app_ms": 203.613,
+  "ctr_consistent": true,
+  "ctr_sum": [
+   8192
+  ],
+  "dispatches": [
+   8
+  ],
+  "hash_ok": null,
+  "n": 5,
+  "ok": 5,
+  "overhead": 58.25836909871244,
+  "pass0_ms": 171.084,
+  "replay_pass_ms": 8.668913333333334,
+  "statuses": {
+   "REPLAYED": 5
+  }
+ },
+ "f-chase|kernel|v2-host": {
+  "app_ms": 162.795,
+  "ctr_consistent": true,
+  "ctr_sum": [
+   8192
+  ],
+  "dispatches": [
+   8
+  ],
+  "hash_ok": null,
+  "n": 5,
+  "ok": 5,
+  "overhead": 46.579399141630894,
+  "pass0_ms": 138.046,
+  "replay_pass_ms": 5.874726666666667,
+  "statuses": {
+   "REPLAYED": 5
+  }
+ },
+ "f-chase|kernel|v2-packet": {
+  "app_ms": 213.234,
+  "ctr_consistent": true,
+  "ctr_sum": [
+   8192
+  ],
+  "dispatches": [
+   8
+  ],
+  "hash_ok": null,
+  "n": 5,
+  "ok": 5,
+  "overhead": 61.01115879828326,
+  "pass0_ms": 168.843,
+  "replay_pass_ms": 13.011323333333333,
+  "statuses": {
+   "REPLAYED": 5
+  }
+ },
+ "f-gather|full|native": {
+  "app_ms": 15.767,
+  "ctr_consistent": null,
+  "ctr_sum": [],
+  "dispatches": [],
+  "hash_ok": null,
+  "n": 5,
+  "ok": 5,
+  "overhead": 1.0,
+  "pass0_ms": null,
+  "replay_pass_ms": null,
+  "statuses": {
+   "-": 5
+  }
+ },
+ "f-gather|full|v1-host": {
+  "app_ms": null,
+  "ctr_consistent": null,
+  "ctr_sum": [],
+  "dispatches": [],
+  "hash_ok": null,
+  "n": 1,
+  "ok": 0,
+  "overhead": null,
+  "pass0_ms": null,
+  "replay_pass_ms": null,
+  "statuses": {
+   "NO-SDK-HOST": 1
+  }
+ },
+ "f-gather|full|v1-packet": {
+  "app_ms": 685.002,
+  "ctr_consistent": true,
+  "ctr_sum": [
+   38912
+  ],
+  "dispatches": [
+   8
+  ],
+  "hash_ok": null,
+  "n": 5,
+  "ok": 5,
+  "overhead": 43.445297139595354,
+  "pass0_ms": 545.266,
+  "replay_pass_ms": 34.5282,
+  "statuses": {
+   "REPLAYED": 5
+  }
+ },
+ "f-gather|full|v2-host": {
+  "app_ms": 558.517,
+  "ctr_consistent": false,
+  "ctr_sum": [
+   38912
+  ],
+  "dispatches": [
+   8
+  ],
+  "hash_ok": null,
+  "n": 5,
+  "ok": 5,
+  "overhead": 35.42316230100844,
+  "pass0_ms": 405.477,
+  "replay_pass_ms": 32.27263333333333,
+  "statuses": {
+   "REPLAYED": 5
+  }
+ },
+ "f-gather|full|v2-host-notrack": {
+  "app_ms": 429.57550000000003,
+  "ctr_consistent": true,
+  "ctr_sum": [
+   38912
+  ],
+  "dispatches": [
+   8
+  ],
+  "hash_ok": null,
+  "n": 2,
+  "ok": 0,
+  "overhead": 27.245227373628467,
+  "pass0_ms": 327.102,
+  "replay_pass_ms": 23.841383333333333,
+  "statuses": {
+   "REPLAYED": 2
+  }
+ },
+ "f-gather|full|v2-packet": {
+  "app_ms": 708.241,
+  "ctr_consistent": false,
+  "ctr_sum": [
+   38912
+  ],
+  "dispatches": [
+   8
+  ],
+  "hash_ok": null,
+  "n": 5,
+  "ok": 5,
+  "overhead": 44.9191983256168,
+  "pass0_ms": 542.11,
+  "replay_pass_ms": 42.24956666666667,
+  "statuses": {
+   "REPLAYED": 5
+  }
+ },
+ "f-gather|kernel|native": {
+  "app_ms": 10.125,
+  "ctr_consistent": null,
+  "ctr_sum": [],
+  "dispatches": [],
+  "hash_ok": null,
+  "n": 5,
+  "ok": 5,
+  "overhead": 1.0,
+  "pass0_ms": null,
+  "replay_pass_ms": null,
+  "statuses": {
+   "-": 5
+  }
+ },
+ "f-gather|kernel|v1-host": {
+  "app_ms": null,
+  "ctr_consistent": null,
+  "ctr_sum": [],
+  "dispatches": [],
+  "hash_ok": null,
+  "n": 1,
+  "ok": 0,
+  "overhead": null,
+  "pass0_ms": null,
+  "replay_pass_ms": null,
+  "statuses": {
+   "NO-SDK-HOST": 1
+  }
+ },
+ "f-gather|kernel|v1-packet": {
+  "app_ms": 690.392,
+  "ctr_consistent": true,
+  "ctr_sum": [
+   38912
+  ],
+  "dispatches": [
+   8
+  ],
+  "hash_ok": null,
+  "n": 5,
+  "ok": 5,
+  "overhead": 68.18686419753087,
+  "pass0_ms": 538.642,
+  "replay_pass_ms": 36.184733333333334,
+  "statuses": {
+   "REPLAYED": 5
+  }
+ },
+ "f-gather|kernel|v2-host": {
+  "app_ms": 425.99,
+  "ctr_consistent": true,
+  "ctr_sum": [
+   38912
+  ],
+  "dispatches": [
+   8
+  ],
+  "hash_ok": null,
+  "n": 5,
+  "ok": 5,
+  "overhead": 42.07308641975309,
+  "pass0_ms": 331.856,
+  "replay_pass_ms": 20.015933333333333,
+  "statuses": {
+   "REPLAYED": 5
+  }
+ },
+ "f-gather|kernel|v2-packet": {
+  "app_ms": 697.18,
+  "ctr_consistent": true,
+  "ctr_sum": [
+   38912
+  ],
+  "dispatches": [
+   8
+  ],
+  "hash_ok": null,
+  "n": 5,
+  "ok": 5,
+  "overhead": 68.85728395061727,
+  "pass0_ms": 537.103,
+  "replay_pass_ms": 40.53326666666667,
+  "statuses": {
+   "REPLAYED": 5
+  }
+ },
+ "f-gups|full|native": {
+  "app_ms": 22.844,
+  "ctr_consistent": null,
+  "ctr_sum": [],
+  "dispatches": [],
+  "hash_ok": null,
+  "n": 5,
+  "ok": 5,
+  "overhead": 1.0,
+  "pass0_ms": null,
+  "replay_pass_ms": null,
+  "statuses": {
+   "-": 5
+  }
+ },
+ "f-gups|full|v1-host": {
+  "app_ms": null,
+  "ctr_consistent": null,
+  "ctr_sum": [],
+  "dispatches": [],
+  "hash_ok": null,
+  "n": 1,
+  "ok": 0,
+  "overhead": null,
+  "pass0_ms": null,
+  "replay_pass_ms": null,
+  "statuses": {
+   "NO-SDK-HOST": 1
+  }
+ },
+ "f-gups|full|v1-packet": {
+  "app_ms": 319.949,
+  "ctr_consistent": true,
+  "ctr_sum": [
+   38912
+  ],
+  "dispatches": [
+   8
+  ],
+  "hash_ok": null,
+  "n": 5,
+  "ok": 5,
+  "overhead": 14.005822097706181,
+  "pass0_ms": 237.624,
+  "replay_pass_ms": 24.84583333333333,
+  "statuses": {
+   "REPLAYED": 5
+  }
+ },
+ "f-gups|full|v2-host": {
+  "app_ms": 366.836,
+  "ctr_consistent": true,
+  "ctr_sum": [
+   38912
+  ],
+  "dispatches": [
+   8
+  ],
+  "hash_ok": null,
+  "n": 5,
+  "ok": 5,
+  "overhead": 16.058308527403256,
+  "pass0_ms": 247.06,
+  "replay_pass_ms": 33.1053,
+  "statuses": {
+   "REPLAYED": 5
+  }
+ },
+ "f-gups|full|v2-host-notrack": {
+  "app_ms": 265.499,
+  "ctr_consistent": true,
+  "ctr_sum": [
+   38912
+  ],
+  "dispatches": [
+   8
+  ],
+  "hash_ok": null,
+  "n": 2,
+  "ok": 0,
+  "overhead": 11.622264051829802,
+  "pass0_ms": 179.893,
+  "replay_pass_ms": 25.778,
+  "statuses": {
+   "REPLAYED": 2
+  }
+ },
+ "f-gups|full|v2-packet": {
+  "app_ms": 333.756,
+  "ctr_consistent": true,
+  "ctr_sum": [
+   38912
+  ],
+  "dispatches": [
+   8
+  ],
+  "hash_ok": null,
+  "n": 5,
+  "ok": 5,
+  "overhead": 14.610225879880929,
+  "pass0_ms": 237.234,
+  "replay_pass_ms": 29.287066666666668,
+  "statuses": {
+   "REPLAYED": 5
+  }
+ },
+ "f-gups|kernel|native": {
+  "app_ms": 17.562,
+  "ctr_consistent": null,
+  "ctr_sum": [],
+  "dispatches": [],
+  "hash_ok": null,
+  "n": 5,
+  "ok": 5,
+  "overhead": 1.0,
+  "pass0_ms": null,
+  "replay_pass_ms": null,
+  "statuses": {
+   "-": 5
+  }
+ },
+ "f-gups|kernel|v1-host": {
+  "app_ms": null,
+  "ctr_consistent": null,
+  "ctr_sum": [],
+  "dispatches": [],
+  "hash_ok": null,
+  "n": 1,
+  "ok": 0,
+  "overhead": null,
+  "pass0_ms": null,
+  "replay_pass_ms": null,
+  "statuses": {
+   "NO-SDK-HOST": 1
+  }
+ },
+ "f-gups|kernel|v1-packet": {
+  "app_ms": 314.904,
+  "ctr_consistent": true,
+  "ctr_sum": [
+   38912
+  ],
+  "dispatches": [
+   8
+  ],
+  "hash_ok": null,
+  "n": 5,
+  "ok": 5,
+  "overhead": 17.93098735907072,
+  "pass0_ms": 232.178,
+  "replay_pass_ms": 24.8427,
+  "statuses": {
+   "REPLAYED": 5
+  }
+ },
+ "f-gups|kernel|v2-host": {
+  "app_ms": 243.619,
+  "ctr_consistent": false,
+  "ctr_sum": [
+   38912
+  ],
+  "dispatches": [
+   8
+  ],
+  "hash_ok": null,
+  "n": 5,
+  "ok": 5,
+  "overhead": 13.871939414645256,
+  "pass0_ms": 173.985,
+  "replay_pass_ms": 20.802966666666666,
+  "statuses": {
+   "REPLAYED": 5
+  }
+ },
+ "f-gups|kernel|v2-packet": {
+  "app_ms": 332.098,
+  "ctr_consistent": false,
+  "ctr_sum": [
+   38912,
+   43776
+  ],
+  "dispatches": [
+   8
+  ],
+  "hash_ok": null,
+  "n": 5,
+  "ok": 5,
+  "overhead": 18.91003302585127,
+  "pass0_ms": 230.344,
+  "replay_pass_ms": 29.7621,
+  "statuses": {
+   "REPLAYED": 5
+  }
+ },
+ "f-hist|full|native": {
+  "app_ms": 291.849,
+  "ctr_consistent": null,
+  "ctr_sum": [],
+  "dispatches": [],
+  "hash_ok": null,
+  "n": 5,
+  "ok": 5,
+  "overhead": 1.0,
+  "pass0_ms": null,
+  "replay_pass_ms": null,
+  "statuses": {
+   "-": 5
+  }
+ },
+ "f-hist|full|v1-host": {
+  "app_ms": null,
+  "ctr_consistent": null,
+  "ctr_sum": [],
+  "dispatches": [],
+  "hash_ok": null,
+  "n": 1,
+  "ok": 0,
+  "overhead": null,
+  "pass0_ms": null,
+  "replay_pass_ms": null,
+  "statuses": {
+   "NO-SDK-HOST": 1
+  }
+ },
+ "f-hist|full|v1-packet": {
+  "app_ms": 1536.736,
+  "ctr_consistent": false,
+  "ctr_sum": [
+   38912
+  ],
+  "dispatches": [
+   8
+  ],
+  "hash_ok": null,
+  "n": 5,
+  "ok": 5,
+  "overhead": 5.265517442238966,
+  "pass0_ms": 610.248,
+  "replay_pass_ms": 302.649,
+  "statuses": {
+   "REPLAYED": 5
+  }
+ },
+ "f-hist|full|v2-host": {
+  "app_ms": 1402.105,
+  "ctr_consistent": false,
+  "ctr_sum": [
+   38912
+  ],
+  "dispatches": [
+   8
+  ],
+  "hash_ok": null,
+  "n": 5,
+  "ok": 5,
+  "overhead": 4.804213822901569,
+  "pass0_ms": 500.803,
+  "replay_pass_ms": 294.78566666666666,
+  "statuses": {
+   "REPLAYED": 5
+  }
+ },
+ "f-hist|full|v2-host-notrack": {
+  "app_ms": 1400.596,
+  "ctr_consistent": false,
+  "ctr_sum": [
+   38912
+  ],
+  "dispatches": [
+   8
+  ],
+  "hash_ok": null,
+  "n": 2,
+  "ok": 0,
+  "overhead": 4.799043340905743,
+  "pass0_ms": 502.1815,
+  "replay_pass_ms": 294.0328333333333,
+  "statuses": {
+   "REPLAYED": 2
+  }
+ },
+ "f-hist|full|v2-packet": {
+  "app_ms": 1549.988,
+  "ctr_consistent": false,
+  "ctr_sum": [
+   38912,
+   47424
+  ],
+  "dispatches": [
+   8
+  ],
+  "hash_ok": null,
+  "n": 5,
+  "ok": 5,
+  "overhead": 5.310924484921998,
+  "pass0_ms": 607.512,
+  "replay_pass_ms": 306.842,
+  "statuses": {
+   "REPLAYED": 5
+  }
+ },
+ "f-hist|kernel|native": {
+  "app_ms": 292.003,
+  "ctr_consistent": null,
+  "ctr_sum": [],
+  "dispatches": [],
+  "hash_ok": null,
+  "n": 5,
+  "ok": 5,
+  "overhead": 1.0,
+  "pass0_ms": null,
+  "replay_pass_ms": null,
+  "statuses": {
+   "-": 5
+  }
+ },
+ "f-hist|kernel|v1-host": {
+  "app_ms": null,
+  "ctr_consistent": null,
+  "ctr_sum": [],
+  "dispatches": [],
+  "hash_ok": null,
+  "n": 1,
+  "ok": 0,
+  "overhead": null,
+  "pass0_ms": null,
+  "replay_pass_ms": null,
+  "statuses": {
+   "NO-SDK-HOST": 1
+  }
+ },
+ "f-hist|kernel|v1-packet": {
+  "app_ms": 1536.817,
+  "ctr_consistent": false,
+  "ctr_sum": [
+   38912,
+   44992
+  ],
+  "dispatches": [
+   8
+  ],
+  "hash_ok": null,
+  "n": 5,
+  "ok": 5,
+  "overhead": 5.263017845707065,
+  "pass0_ms": 610.025,
+  "replay_pass_ms": 302.48133333333334,
+  "statuses": {
+   "REPLAYED": 5
+  }
+ },
+ "f-hist|kernel|v2-host": {
+  "app_ms": 1398.097,
+  "ctr_consistent": false,
+  "ctr_sum": [
+   38912,
+   45732
+  ],
+  "dispatches": [
+   8
+  ],
+  "hash_ok": null,
+  "n": 5,
+  "ok": 5,
+  "overhead": 4.787954233346918,
+  "pass0_ms": 500.992,
+  "replay_pass_ms": 294.6963333333333,
+  "statuses": {
+   "REPLAYED": 5
+  }
+ },
+ "f-hist|kernel|v2-packet": {
+  "app_ms": 1547.778,
+  "ctr_consistent": false,
+  "ctr_sum": [
+   38912
+  ],
+  "dispatches": [
+   8
+  ],
+  "hash_ok": null,
+  "n": 5,
+  "ok": 5,
+  "overhead": 5.3005551312828985,
+  "pass0_ms": 606.343,
+  "replay_pass_ms": 307.65633333333335,
+  "statuses": {
+   "REPLAYED": 5
+  }
+ },
+ "f-jacobi|full|native": {
+  "app_ms": 7.317,
+  "ctr_consistent": null,
+  "ctr_sum": [],
+  "dispatches": [],
+  "hash_ok": null,
+  "n": 5,
+  "ok": 5,
+  "overhead": 1.0,
+  "pass0_ms": null,
+  "replay_pass_ms": null,
+  "statuses": {
+   "-": 5
+  }
+ },
+ "f-jacobi|full|v1-host": {
+  "app_ms": null,
+  "ctr_consistent": null,
+  "ctr_sum": [],
+  "dispatches": [],
+  "hash_ok": null,
+  "n": 1,
+  "ok": 0,
+  "overhead": null,
+  "pass0_ms": null,
+  "replay_pass_ms": null,
+  "statuses": {
+   "NO-SDK-HOST": 1
+  }
+ },
+ "f-jacobi|full|v1-packet": {
+  "app_ms": 396.954,
+  "ctr_consistent": true,
+  "ctr_sum": [
+   77824
+  ],
+  "dispatches": [
+   16
+  ],
+  "hash_ok": null,
+  "n": 5,
+  "ok": 5,
+  "overhead": 54.25092250922509,
+  "pass0_ms": 335.731,
+  "replay_pass_ms": 14.997203333333333,
+  "statuses": {
+   "REPLAYED": 5
+  }
+ },
+ "f-jacobi|full|v2-host": {
+  "app_ms": 380.656,
+  "ctr_consistent": true,
+  "ctr_sum": [
+   77824
+  ],
+  "dispatches": [
+   16
+  ],
+  "hash_ok": null,
+  "n": 5,
+  "ok": 5,
+  "overhead": 52.023506901735686,
+  "pass0_ms": 293.196,
+  "replay_pass_ms": 19.648,
+  "statuses": {
+   "REPLAYED": 5
+  }
+ },
+ "f-jacobi|full|v2-host-notrack": {
+  "app_ms": 269.459,
+  "ctr_consistent": true,
+  "ctr_sum": [
+   77824
+  ],
+  "dispatches": [
+   16
+  ],
+  "hash_ok": null,
+  "n": 2,
+  "ok": 0,
+  "overhead": 36.82643159764931,
+  "pass0_ms": 217.2295,
+  "replay_pass_ms": 11.800075,
+  "statuses": {
+   "REPLAYED": 2
+  }
+ },
+ "f-jacobi|full|v2-packet": {
+  "app_ms": 416.265,
+  "ctr_consistent": true,
+  "ctr_sum": [
+   77824
+  ],
+  "dispatches": [
+   16
+  ],
+  "hash_ok": null,
+  "n": 5,
+  "ok": 5,
+  "overhead": 56.890118901189005,
+  "pass0_ms": 336.471,
+  "replay_pass_ms": 20.173673333333333,
+  "statuses": {
+   "REPLAYED": 5
+  }
+ },
+ "f-jacobi|kernel|native": {
+  "app_ms": 1.871,
+  "ctr_consistent": null,
+  "ctr_sum": [],
+  "dispatches": [],
+  "hash_ok": null,
+  "n": 5,
+  "ok": 5,
+  "overhead": 1.0,
+  "pass0_ms": null,
+  "replay_pass_ms": null,
+  "statuses": {
+   "-": 5
+  }
+ },
+ "f-jacobi|kernel|v1-host": {
+  "app_ms": null,
+  "ctr_consistent": null,
+  "ctr_sum": [],
+  "dispatches": [],
+  "hash_ok": null,
+  "n": 1,
+  "ok": 0,
+  "overhead": null,
+  "pass0_ms": null,
+  "replay_pass_ms": null,
+  "statuses": {
+   "NO-SDK-HOST": 1
+  }
+ },
+ "f-jacobi|kernel|v1-packet": {
+  "app_ms": 402.009,
+  "ctr_consistent": true,
+  "ctr_sum": [
+   77824
+  ],
+  "dispatches": [
+   16
+  ],
+  "hash_ok": null,
+  "n": 5,
+  "ok": 5,
+  "overhead": 214.86317477284877,
+  "pass0_ms": 330.276,
+  "replay_pass_ms": 17.5968,
+  "statuses": {
+   "REPLAYED": 5
+  }
+ },
+ "f-jacobi|kernel|v2-host": {
+  "app_ms": 262.393,
+  "ctr_consistent": true,
+  "ctr_sum": [
+   77824
+  ],
+  "dispatches": [
+   16
+  ],
+  "hash_ok": null,
+  "n": 5,
+  "ok": 5,
+  "overhead": 140.24211651523248,
+  "pass0_ms": 219.188,
+  "replay_pass_ms": 8.313396666666668,
+  "statuses": {
+   "REPLAYED": 5
+  }
+ },
+ "f-jacobi|kernel|v2-packet": {
+  "app_ms": 411.286,
+  "ctr_consistent": true,
+  "ctr_sum": [
+   77824
+  ],
+  "dispatches": [
+   16
+  ],
+  "hash_ok": null,
+  "n": 5,
+  "ok": 5,
+  "overhead": 219.8214858364511,
+  "pass0_ms": 330.925,
+  "replay_pass_ms": 21.16153333333333,
+  "statuses": {
+   "REPLAYED": 5
+  }
+ },
+ "f-spmv|full|native": {
+  "app_ms": 9.0,
+  "ctr_consistent": null,
+  "ctr_sum": [],
+  "dispatches": [],
+  "hash_ok": null,
+  "n": 5,
+  "ok": 5,
+  "overhead": 1.0,
+  "pass0_ms": null,
+  "replay_pass_ms": null,
+  "statuses": {
+   "-": 5
+  }
+ },
+ "f-spmv|full|v1-host": {
+  "app_ms": null,
+  "ctr_consistent": null,
+  "ctr_sum": [],
+  "dispatches": [],
+  "hash_ok": null,
+  "n": 1,
+  "ok": 0,
+  "overhead": null,
+  "pass0_ms": null,
+  "replay_pass_ms": null,
+  "statuses": {
+   "NO-SDK-HOST": 1
+  }
+ },
+ "f-spmv|full|v1-packet": {
+  "app_ms": 377.229,
+  "ctr_consistent": true,
+  "ctr_sum": [
+   77824
+  ],
+  "dispatches": [
+   16
+  ],
+  "hash_ok": null,
+  "n": 5,
+  "ok": 5,
+  "overhead": 41.91433333333333,
+  "pass0_ms": 295.015,
+  "replay_pass_ms": 22.3506,
+  "statuses": {
+   "REPLAYED": 5
+  }
+ },
+ "f-spmv|full|v2-host": {
+  "app_ms": 267.153,
+  "ctr_consistent": true,
+  "ctr_sum": [
+   77824
+  ],
+  "dispatches": [
+   16
+  ],
+  "hash_ok": null,
+  "n": 5,
+  "ok": 5,
+  "overhead": 29.683666666666667,
+  "pass0_ms": 206.717,
+  "replay_pass_ms": 15.042383333333333,
+  "statuses": {
+   "REPLAYED": 5
+  }
+ },
+ "f-spmv|full|v2-host-notrack": {
+  "app_ms": 251.2545,
+  "ctr_consistent": true,
+  "ctr_sum": [
+   77824
+  ],
+  "dispatches": [
+   16
+  ],
+  "hash_ok": null,
+  "n": 2,
+  "ok": 0,
+  "overhead": 27.917166666666667,
+  "pass0_ms": 198.1085,
+  "replay_pass_ms": 13.042773333333333,
+  "statuses": {
+   "REPLAYED": 2
+  }
+ },
+ "f-spmv|full|v2-packet": {
+  "app_ms": 396.024,
+  "ctr_consistent": true,
+  "ctr_sum": [
+   77824
+  ],
+  "dispatches": [
+   16
+  ],
+  "hash_ok": null,
+  "n": 5,
+  "ok": 5,
+  "overhead": 44.00266666666667,
+  "pass0_ms": 293.736,
+  "replay_pass_ms": 26.7911,
+  "statuses": {
+   "REPLAYED": 5
+  }
+ },
+ "f-spmv|kernel|native": {
+  "app_ms": 8.439,
+  "ctr_consistent": null,
+  "ctr_sum": [],
+  "dispatches": [],
+  "hash_ok": null,
+  "n": 5,
+  "ok": 5,
+  "overhead": 1.0,
+  "pass0_ms": null,
+  "replay_pass_ms": null,
+  "statuses": {
+   "-": 5
+  }
+ },
+ "f-spmv|kernel|v1-host": {
+  "app_ms": null,
+  "ctr_consistent": null,
+  "ctr_sum": [],
+  "dispatches": [],
+  "hash_ok": null,
+  "n": 1,
+  "ok": 0,
+  "overhead": null,
+  "pass0_ms": null,
+  "replay_pass_ms": null,
+  "statuses": {
+   "NO-SDK-HOST": 1
+  }
+ },
+ "f-spmv|kernel|v1-packet": {
+  "app_ms": 378.08,
+  "ctr_consistent": true,
+  "ctr_sum": [
+   77824
+  ],
+  "dispatches": [
+   16
+  ],
+  "hash_ok": null,
+  "n": 5,
+  "ok": 5,
+  "overhead": 44.8015167673895,
+  "pass0_ms": 294.378,
+  "replay_pass_ms": 22.3357,
+  "statuses": {
+   "REPLAYED": 5
+  }
+ },
+ "f-spmv|kernel|v2-host": {
+  "app_ms": 262.634,
+  "ctr_consistent": true,
+  "ctr_sum": [
+   77824
+  ],
+  "dispatches": [
+   16
+  ],
+  "hash_ok": null,
+  "n": 5,
+  "ok": 5,
+  "overhead": 31.121459888612396,
+  "pass0_ms": 201.682,
+  "replay_pass_ms": 14.300136666666667,
+  "statuses": {
+   "REPLAYED": 5
+  }
+ },
+ "f-spmv|kernel|v2-packet": {
+  "app_ms": 389.224,
+  "ctr_consistent": false,
+  "ctr_sum": [
+   77824
+  ],
+  "dispatches": [
+   16
+  ],
+  "hash_ok": null,
+  "n": 5,
+  "ok": 5,
+  "overhead": 46.12205237587392,
+  "pass0_ms": 293.038,
+  "replay_pass_ms": 26.987066666666667,
+  "statuses": {
+   "REPLAYED": 5
+  }
+ }
+}

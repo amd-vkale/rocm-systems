@@ -75,7 +75,9 @@ at once on four GPUs. The timing table ran one process on the whole machine.
   printed the correct hash in every run.
 
 `RR_APP_MODE=packet` opens the range with `rocprofiler_range_replay_begin`. `RR_APP_MODE=host`
-opens it with `ROCPROFILER_RANGE_REPLAY_HOST_BEGIN`. The tool (`rr_tool.cpp`, `LD_PRELOAD` through
+takes the `sigsetjmp` and opens it the way `ROCPROFILER_RANGE_REPLAY_HOST_BEGIN` does. The apps
+resolve these entry points at run time (`rr_rt.h`) rather than linking the SDK, so one binary runs
+against range replay v1, v2, or no SDK; `run_matrix.py` preloads the SDK under test. The tool (`rr_tool.cpp`, `LD_PRELOAD` through
 `ROCP_TOOL_LIBRARIES`) sets the pass count, sets `host_replay` from `RR_HOST_REPLAY`, times each
 pass, optionally collects a different counter on each pass (`RR_COUNTERS`), and writes the CLOSE
 record as JSON.

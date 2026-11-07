@@ -1,6 +1,6 @@
-diff -ruN XSBench/openmp-offload/Main.c apps/xsbench-omp/Main.c
+diff -ruN -x '*.o' -x XSBench XSBench/openmp-offload/Main.c apps/xsbench-omp/Main.c
 --- XSBench/openmp-offload/Main.c	2026-11-06 23:05:43.602951032 -0600
-+++ apps/xsbench-omp/Main.c	2026-11-06 23:24:28.672347500 -0600
++++ apps/xsbench-omp/Main.c	2026-11-07 07:17:42.823644835 -0600
 @@ -75,7 +75,19 @@
  	if( in.simulation_method == EVENT_BASED )
  	{
@@ -12,18 +12,18 @@ diff -ruN XSBench/openmp-offload/Main.c apps/xsbench-omp/Main.c
 +				#pragma omp target
 +				{ }
 +			}
-+			RR_BEGIN(2, rr_full);
++			RR_APP_BEGIN(2, rr_full);
  			verification = run_event_based_simulation(in, SD, mype);
 +			if( rr_full )
 +				fprintf(stderr, "[rr-app] xsbench host_pass=%lu hash=%llu\n", rr_host_pass(), verification % 999983);
-+			RR_END(rr_full);
++			RR_APP_END(rr_full);
 +		}
  		else
  		{
  			printf("Error: No kernel ID %d found!\n", in.kernel_id);
-diff -ruN XSBench/openmp-offload/Simulation.c apps/xsbench-omp/Simulation.c
+diff -ruN -x '*.o' -x XSBench XSBench/openmp-offload/Simulation.c apps/xsbench-omp/Simulation.c
 --- XSBench/openmp-offload/Simulation.c	2026-11-06 23:05:43.602951032 -0600
-+++ apps/xsbench-omp/Simulation.c	2026-11-06 23:22:42.811037381 -0600
++++ apps/xsbench-omp/Simulation.c	2026-11-07 07:17:42.823644835 -0600
 @@ -41,6 +41,21 @@
  	////////////////////////////////////////////////////////////////////////////////
  	unsigned long long * verification = (unsigned long long *) malloc(in.lookups * sizeof(unsigned long long));
@@ -41,7 +41,7 @@ diff -ruN XSBench/openmp-offload/Simulation.c apps/xsbench-omp/Simulation.c
 +		map(to: SD.nuclide_grid[:SD.length_nuclide_grid])\
 +		map(alloc: verification[:in.lookups])
 +	}
-+	RR_BEGIN(1, rr_kernel);
++	RR_APP_BEGIN(1, rr_kernel);
 +
  	#pragma omp target teams distribute parallel for\
  	map(to: SD.max_num_nucs)\
@@ -50,7 +50,7 @@ diff -ruN XSBench/openmp-offload/Simulation.c apps/xsbench-omp/Simulation.c
  		verification[i] = max_idx+1;
  	}
  
-+	RR_END(rr_kernel);
++	RR_APP_END(rr_kernel);
 +	if( rr_kernel )
 +	{
 +		#pragma omp target exit data\
@@ -67,7 +67,7 @@ diff -ruN XSBench/openmp-offload/Simulation.c apps/xsbench-omp/Simulation.c
    // Reduce validation hash on the host
    unsigned long long validation_hash = 0;
  	for( int i = 0; i < in.lookups; i++ )
-diff -ruN XSBench/openmp-offload/XSbench_header.h apps/xsbench-omp/XSbench_header.h
+diff -ruN -x '*.o' -x XSBench XSBench/openmp-offload/XSbench_header.h apps/xsbench-omp/XSbench_header.h
 --- XSBench/openmp-offload/XSbench_header.h	2026-11-06 23:05:43.602951032 -0600
 +++ apps/xsbench-omp/XSbench_header.h	2026-11-06 23:08:52.985183572 -0600
 @@ -12,6 +12,7 @@

@@ -1,0 +1,67 @@
+--- a/src/fortran/main.F90
++++ b/src/fortran/main.F90
+@@ -470,8 +470,49 @@
+ 
+ end module BabelStreamUtil
+ 
++! Range replay instrumentation: the whole timed kernel loop is range 1.
++module BabelStreamRR
++    use iso_c_binding
++    use BabelStreamUtil
++    implicit none
++    real(kind=REAL64), allocatable :: g_timings(:,:)
++    real(kind=REAL64) :: g_summ = 0.0d0
++    interface
++      subroutine rr_f_range(id, body) bind(c, name='rr_f_range')
++        import :: c_int64_t, c_funptr
++        integer(c_int64_t), value :: id
++        type(c_funptr), value :: body
++      end subroutine
++    end interface
++contains
++    subroutine rr_body() bind(c)
++        if (selection.eq.1) then
++            call run_all(g_timings, g_summ)
++        else if (selection.eq.2) then
++            call run_triad(g_timings)
++        else if (selection.eq.3) then
++            call run_nstream(g_timings)
++        endif
++    end subroutine rr_body
++
++    subroutine rr_run(timings, summ)
++        real(kind=REAL64), intent(inout) :: timings(:,:)
++        real(kind=REAL64), intent(inout) :: summ
++        real(kind=REAL64) :: t0, t1
++        allocate(g_timings, source=timings)
++        g_summ = summ
++        t0 = get_wtime()
++        call rr_f_range(1_c_int64_t, c_funloc(rr_body))
++        t1 = get_wtime()
++        write(*,'(a,f12.3)') '[bench] name=babelstream lang=f90 range_ms=', (t1-t0)*1.0d3
++        timings = g_timings
++        summ = g_summ
++    end subroutine rr_run
++end module BabelStreamRR
++
+ program BabelStream
+     use BabelStreamUtil
++    use BabelStreamRR
+ #if defined(USE_DOCONCURRENT)
+     use DoConcurrentStream
+ #elif defined(USE_ARRAY)
+@@ -562,13 +603,7 @@
+ 
+ 
+     timings = -1.0d0
+-    if (selection.eq.1) then
+-        call run_all(timings, summ)
+-    else if (selection.eq.2) then
+-        call run_triad(timings)
+-    else if (selection.eq.3) then
+-        call run_nstream(timings)
+-    endif
++    call rr_run(timings, summ)
+ 
+     allocate( h_A(1:array_size), h_B(1:array_size), h_C(1:array_size), stat=err)
+     if (err .ne. 0) then

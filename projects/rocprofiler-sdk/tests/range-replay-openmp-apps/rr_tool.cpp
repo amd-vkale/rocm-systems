@@ -4,6 +4,7 @@
 //   RR_HOST_REPLAY  1 = host replay (sigsetjmp), 0 = packet replay (default 0)
 //   RR_COUNTERS     comma list; pass p collects counter [p % n] for every dispatch in the range
 //   RR_OUT          append one JSON line per range here (default stderr only)
+//   RR_MPI_AGREE    1 = replay only when every MPI rank can (build with -DRR_TOOL_MPI)
 
 #include <rocprofiler-sdk/counters.h>
 #include <rocprofiler-sdk/dispatch_counting_service.h>
@@ -11,6 +12,10 @@
 #include <rocprofiler-sdk/fwd.h>
 #include <rocprofiler-sdk/registration.h>
 #include <rocprofiler-sdk/rocprofiler.h>
+
+#ifdef RR_TOOL_MPI
+#    include <mpi.h>
+#endif
 
 #include <atomic>
 #include <chrono>
@@ -29,7 +34,7 @@
         auto _s = (call);                                                                          \
         if(_s != ROCPROFILER_STATUS_SUCCESS)                                                       \
         {                                                                                          \
-            fprintf(stderr, "[rr-tool] %s: %s\n", #call, rocprofiler_get_status_string(_s));       \
+            fprintf(stderr, "[rr-tool] %s: %s\n", #call, rocprofiler_get_status_string(_s));      \
             std::abort();                                                                          \
         }                                                                                          \
     } while(0)
@@ -61,14 +66,18 @@ status_name(rocprofiler_range_replay_status_t s)
             return "UNSUPPORTED_QUEUE_PATH";
         case ROCPROFILER_RANGE_REPLAY_STATUS_CODE_OBJECT_CHANGED_IN_RANGE:
             return "CODE_OBJECT_CHANGED_IN_RANGE";
+#ifndef RR_TOOL_V1
         case ROCPROFILER_RANGE_REPLAY_STATUS_HOST_JMP_NOT_SET: return "HOST_JMP_NOT_SET";
+        case ROCPROFILER_RANGE_REPLAY_STATUS_VETOED: return "VETOED";
+        case ROCPROFILER_RANGE_REPLAY_STATUS_COLLECTIVE_IN_RANGE: return "COLLECTIVE_IN_RANGE";
+#endif
         case ROCPROFILER_RANGE_REPLAY_STATUS_LAST: break;
     }
     return "<unknown>";
 }
 
-uint64_t                 g_passes = 4;
-bool                     g_host   = false;
+uint64_t                 g_passes      = 4;
+bool                     g_host        = false;
 std::vector<std::string> g_counter_names{};
 
 rocprofiler_context_id_t g_replay_ctx{0};
@@ -77,16 +86,42 @@ rocprofiler_context_id_t g_counter_ctx{0};
 std::atomic<bool>     g_in_range{false};
 std::atomic<uint64_t> g_cur_pass{0};
 
-std::mutex                   g_mtx{};
-clock_type::time_point       g_t_config{};
-std::vector<double>          g_pass_ms{};  // pass p start -> pass p+1 start (or close)
-clock_type::time_point       g_t_last{};
-std::map<uint64_t, double>   g_counter_sum{};      // pass -> summed counter value
-std::map<uint64_t, uint64_t> g_counter_records{};  // pass -> dispatch records
-std::map<uint64_t, uint64_t> g_dispatches_seen{};  // pass -> dispatches seen by counting svc
-std::map<uint64_t, uint64_t> g_late_records{};     // pass -> records delivered after CLOSE
+std::mutex                     g_mtx{};
+clock_type::time_point         g_t_config{};
+std::vector<double>            g_pass_ms{};  // pass p start -> pass p+1 start (or close)
+clock_type::time_point         g_t_last{};
+std::map<uint64_t, double>     g_counter_sum{};      // pass -> summed counter value
+std::map<uint64_t, uint64_t>   g_counter_records{};  // pass -> dispatch records
+std::map<uint64_t, uint64_t>   g_dispatches_seen{};  // pass -> dispatches seen by counting svc
+std::map<uint64_t, uint64_t>   g_late_records{};     // pass -> records delivered after CLOSE
 
-uint64_t pass_count(uint64_t, rocprofiler_user_data_t) { return g_passes; }
+uint64_t
+pass_count(uint64_t, rocprofiler_user_data_t)
+{
+    return g_passes;
+}
+
+#ifdef RR_TOOL_MPI
+bool g_mpi_agree = false;
+
+// Replay only when every rank in MPI_COMM_WORLD can: a collective inside the range then runs on
+// every pass on all ranks or on none.
+int
+commit_across_ranks(uint64_t range_id, rocprofiler_range_replay_status_t status, rocprofiler_user_data_t)
+{
+    int initialized = 0;
+    MPI_Initialized(&initialized);
+    int local  = status == ROCPROFILER_RANGE_REPLAY_STATUS_REPLAYED ? 1 : 0;
+    int agreed = local;
+    if(initialized) MPI_Allreduce(&local, &agreed, 1, MPI_INT, MPI_MIN, MPI_COMM_WORLD);
+    fprintf(stderr,
+            "[rr-tool] COMMIT range=%lu local=%s agreed=%s\n",
+            (unsigned long) range_id,
+            status_name(status),
+            agreed ? "replay" : "abandon");
+    return agreed;
+}
+#endif
 
 std::string
 counter_for_pass(uint64_t pass)
@@ -106,7 +141,12 @@ range_replay_cb(rocprofiler_callback_tracing_record_t record, rocprofiler_user_d
     if(record.operation == ROCPROFILER_RANGE_REPLAY_CONFIG)
     {
         d->pass_count_cb = pass_count;
-        d->host_replay   = g_host ? 1 : 0;
+#ifndef RR_TOOL_V1
+        d->host_replay = g_host ? 1 : 0;
+#endif
+#ifdef RR_TOOL_MPI
+        if(g_mpi_agree) d->replay_commit_cb = commit_across_ranks;
+#endif
         std::lock_guard<std::mutex> lk{g_mtx};
         g_t_config = now;
         g_t_last   = now;
@@ -126,7 +166,8 @@ range_replay_cb(rocprofiler_callback_tracing_record_t record, rocprofiler_user_d
     {
         {
             std::lock_guard<std::mutex> lk{g_mtx};
-            g_pass_ms.push_back(std::chrono::duration<double, std::milli>(now - g_t_last).count());
+            g_pass_ms.push_back(
+                std::chrono::duration<double, std::milli>(now - g_t_last).count());
             g_t_last = now;
         }
         g_cur_pass.store(d->current_pass);
@@ -145,8 +186,8 @@ range_replay_cb(rocprofiler_callback_tracing_record_t record, rocprofiler_user_d
 
         std::ostringstream js{};
         js << "{\"range_id\":" << d->range_id << ",\"mode\":\"" << (g_host ? "host" : "packet")
-           << "\",\"passes_requested\":" << g_passes << ",\"status\":\"" << status_name(d->status)
-           << "\",\"dispatch_count\":" << d->dispatch_count
+           << "\",\"passes_requested\":" << g_passes << ",\"status\":\""
+           << status_name(d->status) << "\",\"dispatch_count\":" << d->dispatch_count
            << ",\"divergence_count\":" << d->divergence_count << ",\"range_ms\":" << total_ms
            << ",\"pass_ms\":[";
         for(size_t i = 0; i < g_pass_ms.size(); ++i)
@@ -176,9 +217,9 @@ range_replay_cb(rocprofiler_callback_tracing_record_t record, rocprofiler_user_d
 rocprofiler_counter_config_id_t
 config_for(rocprofiler_agent_id_t agent, const std::string& name)
 {
-    static std::mutex                                                                  m{};
+    static std::mutex                                                       m{};
     static std::map<std::pair<uint64_t, std::string>, rocprofiler_counter_config_id_t> cache{};
-    std::lock_guard<std::mutex>                                                        lk{m};
+    std::lock_guard<std::mutex> lk{m};
     auto key = std::make_pair(agent.handle, name);
     if(auto it = cache.find(key); it != cache.end()) return it->second;
 
@@ -212,9 +253,9 @@ config_for(rocprofiler_agent_id_t agent, const std::string& name)
 
 // Dispatches outside any range, keyed by kernel id: (records, summed value). Filled only with
 // RR_COUNT_ALWAYS=1, using the first RR_COUNTERS entry.
-bool                                            g_count_always = false;
-constexpr uint64_t                              kOutsideRange  = 1ULL << 40;
-std::map<uint64_t, std::pair<uint64_t, double>> g_outside{};
+bool                                               g_count_always = false;
+constexpr uint64_t                                 kOutsideRange  = 1ULL << 40;
+std::map<uint64_t, std::pair<uint64_t, double>>    g_outside{};
 
 void
 counter_dispatch_cb(rocprofiler_dispatch_counting_service_data_t d,
@@ -238,15 +279,32 @@ counter_dispatch_cb(rocprofiler_dispatch_counting_service_data_t d,
     *config = config_for(d.dispatch_info.agent_id, counter_for_pass(pass));
 }
 
+bool g_record_log = false;
+
 void
-counter_record_cb(rocprofiler_dispatch_counting_service_data_t,
-                  rocprofiler_counter_record_t* records,
-                  size_t                        n,
-                  rocprofiler_user_data_t       user_data,
+counter_record_cb(rocprofiler_dispatch_counting_service_data_t d,
+                  rocprofiler_counter_record_t*                records,
+                  size_t                                       n,
+                  rocprofiler_user_data_t                      user_data,
                   void*)
 {
     if(user_data.value == 0) return;
     std::lock_guard<std::mutex> lk{g_mtx};
+    if(g_record_log)
+    {
+        double v = 0;
+        for(size_t i = 0; i < n; ++i)
+            v += records[i].counter_value;
+        fprintf(stderr,
+                "[rr-tool] RECORD pass=%lu dispatch=%lu kernel=%lu grid=%u wg=%u n=%zu value=%.0f\n",
+                (unsigned long) (user_data.value >= kOutsideRange ? 999 : user_data.value - 1),
+                (unsigned long) d.dispatch_info.dispatch_id,
+                (unsigned long) d.dispatch_info.kernel_id,
+                d.dispatch_info.grid_size.x,
+                d.dispatch_info.workgroup_size.x,
+                n,
+                v);
+    }
     if(user_data.value >= kOutsideRange)
     {
         auto& slot = g_outside[user_data.value - kOutsideRange];
@@ -268,6 +326,10 @@ tool_init(rocprofiler_client_finalize_t, void*)
     if(const char* p = std::getenv("RR_PASSES")) g_passes = std::strtoull(p, nullptr, 10);
     if(const char* h = std::getenv("RR_HOST_REPLAY")) g_host = (h[0] != '\0' && h[0] != '0');
     if(const char* a = std::getenv("RR_COUNT_ALWAYS")) g_count_always = (a[0] == '1');
+    if(const char* l = std::getenv("RR_RECORD_LOG")) g_record_log = (l[0] == '1');
+#ifdef RR_TOOL_MPI
+    if(const char* m = std::getenv("RR_MPI_AGREE")) g_mpi_agree = (m[0] == '1');
+#endif
     if(const char* c = std::getenv("RR_COUNTERS"); c && *c)
     {
         std::stringstream ss{c};
@@ -277,12 +339,8 @@ tool_init(rocprofiler_client_finalize_t, void*)
     }
 
     RC(rocprofiler_create_context(&g_replay_ctx));
-    RC(rocprofiler_configure_callback_tracing_service(g_replay_ctx,
-                                                      ROCPROFILER_CALLBACK_TRACING_RANGE_REPLAY,
-                                                      nullptr,
-                                                      0,
-                                                      range_replay_cb,
-                                                      nullptr));
+    RC(rocprofiler_configure_callback_tracing_service(
+        g_replay_ctx, ROCPROFILER_CALLBACK_TRACING_RANGE_REPLAY, nullptr, 0, range_replay_cb, nullptr));
     if(!g_counter_names.empty())
     {
         RC(rocprofiler_create_context(&g_counter_ctx));
