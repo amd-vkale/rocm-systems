@@ -124,6 +124,19 @@ is snapshotted and restored between passes):
 
 **Documentation:** :ref:`using-kernel-replay-rocprofv3`
 
+Range replay (beta)
+-------------------
+
+Collect several ``--pmc`` groups over a phase your application marks with
+``rocprofiler_range_replay_begin`` / ``rocprofiler_range_replay_end``, in one run (pass 0 is the
+application's own execution of the range):
+
+.. code-block:: bash
+
+   rocprofv3 --pmc SQ_WAVES --pmc GRBM_COUNT --replay-mode range --range-replay-beta-enabled -- ./your_app
+
+**Documentation:** :ref:`using-range-replay-rocprofv3`
+
 Process attachment
 ------------------
 

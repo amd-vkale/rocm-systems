@@ -21,7 +21,9 @@ in-process with device memory restored between passes. Kernel replay is a callba
 (:ref:`kernel-replay-sdk-api`), not a third counting mode: dispatch counting still supplies the
 counter records; replay decides how many times the dispatch runs. Custom tools subscribe
 to the domain directly (:ref:`using-kernel-replay`). ``rocprofv3`` exposes that as
-``--replay-mode kernel --kernel-replay-beta-enabled`` (:ref:`using-kernel-replay-rocprofv3`).
+``--replay-mode kernel --kernel-replay-beta-enabled`` (:ref:`using-kernel-replay-rocprofv3`). To
+collect groups over a sequence of dependent dispatches instead, use range replay
+(:ref:`using-range-replay`, or ``--replay-mode range`` in :ref:`using-range-replay-rocprofv3`).
 
 Definitions
 -----------

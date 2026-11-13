@@ -19,6 +19,8 @@ measured one at a time.
    ``<rocprofiler-sdk/experimental/range_replay.h>``. The domain, the payload, and the two entry
    points are expected to change before a stable release.
 
+New to range replay? Start with the how-to guides: :ref:`using-range-replay` (custom tools and
+application authors) or :ref:`using-range-replay-rocprofv3` (``rocprofv3 --replay-mode range``).
 For the model, the carve-outs, and the source map, see :ref:`range-replay-conceptual`. For the full
 API contract see :ref:`range-replay-callback-api`; for what makes a range replayable and why one gets
 declined see :ref:`range-replay-soundness`.
@@ -178,6 +180,8 @@ The payload is in the ``CALLBACK_TRACING_SERVICE`` group:
 See also
 --------
 
+* :ref:`using-range-replay` — SDK how-to: configure, decline handling, samples
+* :ref:`using-range-replay-rocprofv3` — ``rocprofv3 --replay-mode range --range-replay-beta-enabled``
 * :ref:`range-replay-conceptual` — the model and its carve-outs
 * :ref:`range-replay-callback-api` — API contract
 * :ref:`range-replay-soundness` — what makes a range replayable

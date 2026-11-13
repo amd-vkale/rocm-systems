@@ -166,7 +166,7 @@ others. A tool that commits across ranks should therefore treat a `CLOSE` status
 `REPLAYED`, after it committed, as a lost agreement and abort the job (for example with
 `MPI_Abort`) rather than reach the next collective. Packet replay re-checks nothing after the
 commit, so it cannot lose an agreement. See
-[Multi-GPU and collectives](index.md#multi-gpu-and-collectives) for what agreement does and does
+[Multi-GPU and collectives](range_replay_multi_gpu.md) for what agreement does and does
 not make replayable.
 
 ## Localized context control

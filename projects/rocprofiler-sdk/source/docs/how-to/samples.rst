@@ -47,3 +47,18 @@ To run the built samples, ``cd`` into the ``build-rocprofiler-sdk-samples`` dire
     ctest -V
 
 The ``-V`` option enables verbose output, providing detailed information about the test execution.
+
+Replay samples
+--------------
+
+The kernel replay and range replay samples are small custom tools preloaded onto a minimal HIP
+application. Run just one family with a test-name filter:
+
+.. code-block:: bash
+
+    ctest -R '^kernel-replay-' --output-on-failure
+    ctest -R '^range-replay-' --output-on-failure
+
+Each family's ``README.md`` (``samples/kernel_replay/`` and ``samples/range_replay/``) explains
+what every sample demonstrates. The matching guides are :ref:`using-kernel-replay` and
+:ref:`using-range-replay`.

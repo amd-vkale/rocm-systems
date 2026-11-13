@@ -1211,7 +1211,9 @@ Range replay (beta)
 
 The application has to mark the range. rocprofv3 does not choose where the range is. An application that never calls the range API runs once and collects the first counter group.
 
-For what a range covers and when it declines, see :ref:`range-replay-conceptual`.
+For how to mark a range, how passes map to counter groups, and why a range might be declined, see
+:ref:`using-range-replay-rocprofv3`. Tool authors should see :ref:`using-range-replay` and
+:ref:`range-replay-sdk-api`.
 
 .. _extra-counters:
 

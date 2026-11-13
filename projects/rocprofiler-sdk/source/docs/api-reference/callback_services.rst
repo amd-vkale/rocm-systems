@@ -350,5 +350,18 @@ re-executes a GPU dispatch several times with device memory restored between pas
 configure function. Cast ``record.payload`` to
 ``rocprofiler_callback_tracing_kernel_replay_data_t*``.
 
-See :ref:`kernel-replay-sdk-api` for the tool-author walkthrough and
-:ref:`kernel-replay-callback-api` for pass-count semantics and localized context control.
+See :ref:`using-kernel-replay` for the tool-author walkthrough, :ref:`kernel-replay-sdk-api` for the
+payload reference, and :ref:`kernel-replay-callback-api` for pass-count semantics and localized
+context control.
+
+Range replay (experimental)
+----------------------------
+
+``ROCPROFILER_CALLBACK_TRACING_RANGE_REPLAY`` is an experimental callback tracing domain that
+re-executes a sequence of dispatches the application brackets with
+``rocprofiler_range_replay_begin`` / ``rocprofiler_range_replay_end``, restoring device memory to the
+range's entry state before each extra pass. Subscribe with
+``rocprofiler_configure_callback_tracing_service``; cast ``record.payload`` to
+``rocprofiler_callback_tracing_range_replay_data_t*``.
+
+See :ref:`using-range-replay` for the walkthrough and :ref:`range-replay-sdk-api` for the reference.

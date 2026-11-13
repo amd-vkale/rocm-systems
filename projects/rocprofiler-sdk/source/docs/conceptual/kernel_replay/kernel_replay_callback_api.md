@@ -74,13 +74,16 @@ typedef struct rocprofiler_callback_tracing_kernel_replay_data_t
 } rocprofiler_callback_tracing_kernel_replay_data_t;
 ```
 
-During `CONFIG`, the pass-info fields are zero. During `PASS`, the config callback pointers are
-zero and must not be modified.
+During `CONFIG`, the pass-info fields are zero. During `PASS`, `replay_pass_count` reads as `NULL`
+and must not be modified. `replay_continue` is `NULL` during `PASS` `PHASE_ENTER`; during `PASS`
+`PHASE_EXIT` the SDK fills in the callback in effect for that pass, and the tool may overwrite it
+there to change the continue decision for that pass only.
 
-The SDK maintains a single `rocprofiler_user_data_t` for the whole replay sequence. A tool can write
-per-dispatch state into `user_data` during `CONFIG` `PHASE_ENTER`, and the same value is delivered to
-every subsequent `PASS` callback and to both `replay_pass_count` and `replay_continue` for that
-dispatch — so a tool does not need its own side table keyed on dispatch.
+A tool can write per-dispatch state into `user_data` during `CONFIG` `PHASE_ENTER`; that value is
+delivered to `replay_pass_count` and re-seeded into every `PASS` callback for the dispatch, so a tool
+does not need its own side table keyed on dispatch. Each pass gets its own copy: a write during a
+pass is seen by that pass's `PHASE_EXIT` and its `replay_continue` call, and the next pass starts
+from the `CONFIG` value again. State that must persist across passes belongs behind `user_data.ptr`.
 
 ### Dispatch identity across passes
 

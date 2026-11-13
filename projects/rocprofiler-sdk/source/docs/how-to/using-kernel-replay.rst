@@ -1,6 +1,6 @@
 .. meta::
   :description: Using the ROCprofiler-SDK kernel replay callback tracing domain from a custom tool
-  :keywords: rocprofiler-sdk, kernel replay, callback tracing, KERNEL_REPLAY, replay_pass_count, local context
+  :keywords: rocprofiler-sdk, kernel replay, callback tracing, KERNEL_REPLAY, replay_pass_count, replay_continue, local context
 
 .. _using-kernel-replay:
 
@@ -8,93 +8,138 @@
 Using kernel replay
 ===================
 
-Kernel replay is an experimental ROCprofiler-SDK **callback tracing domain**. A custom tool
-subscribes to ``ROCPROFILER_CALLBACK_TRACING_KERNEL_REPLAY``, tells the SDK how many times to
-re-execute a dispatch, and the SDK snapshots tracked device memory, runs that many passes, and
-restores the snapshot between them so every pass observes identical captured inputs.
+Kernel replay lets a custom tool **run the same GPU dispatch several times inside one application
+run**, with device memory restored between runs so every pass sees identical inputs. The
+application never notices: it observes one kernel completion and the memory its kernel produced.
 
-The domain is not tied to hardware counters. A tool can use it for counters, timing, PC sampling,
-thread trace, or any other per-pass work.
+With it, a tool can:
 
-This page is the SDK how-to: it covers subscribing to the replay domain from a custom tool.
-Conceptual and API detail live under :ref:`kernel-replay-conceptual` and
-:ref:`kernel-replay-sdk-api`. For the ``rocprofv3`` command-line option
-(``--replay-mode kernel --kernel-replay-beta-enabled``), see the rocprofv3 how-to guide (:ref:`using-kernel-replay-rocprofv3`).
+* collect **more counter groups** than fit in one hardware pass, all on the same dispatch;
+* put **different services on different passes** -- counters on one pass, thread trace or SPM on
+  another -- so they do not interfere;
+* **choose per dispatch** whether to replay at all, and how many times;
+* **stop early or loop adaptively** until it has the data it needs.
+
+Kernel replay is a **callback tracing domain**, not a counting mode, so it works with any per-pass
+work you like. ``rocprofv3`` uses it to collect several ``--pmc`` groups in one run
+(:ref:`using-kernel-replay-rocprofv3`). If the work you want to measure is a *sequence* of kernels
+that feed each other, use :ref:`range replay <using-range-replay>` instead.
 
 .. warning::
 
    Kernel replay is **experimental**. The public header is
-   ``<rocprofiler-sdk/experimental/kernel_replay.h>``. The domain, payload, and limitations
-   below are expected to change before a stable release.
+   ``<rocprofiler-sdk/experimental/kernel_replay.h>``. The domain, payload, and limitations below
+   are expected to change before a stable release.
 
-Configure the domain
-====================
+How a replayed dispatch runs
+============================
 
-There is no dedicated ``rocprofiler_configure_kernel_replay_*`` entry point. Subscribe through
-ordinary callback tracing:
+.. code-block:: text
 
-.. code-block:: cpp
+   application submits a kernel
+     -> CONFIG enter     your tool sets replay_pass_count (and optionally replay_continue, user_data)
+     -> SDK asks replay_pass_count(dispatch_info, user_data) -> N
+     -> snapshot device memory
+     -> for pass 0 .. N-1:
+          restore snapshot (not before pass 0)
+          PASS enter     your tool notes current_pass, toggles contexts
+          kernel runs    your services collect as usual
+          PASS exit      your tool may override replay_continue for this pass
+          continue?      replay_continue(...) decides whether another pass follows
+     -> CONFIG exit
+   application sees one completion
 
-   rocprofiler_context_id_t ctx{};
-   rocprofiler_create_context(&ctx);
+Everything happens synchronously on the thread that submitted the dispatch. One dispatch id is
+reserved before ``CONFIG`` and reused for every pass, so distinguish passes by ``current_pass``.
 
-   rocprofiler_configure_callback_tracing_service(
-       ctx,
-       ROCPROFILER_CALLBACK_TRACING_KERNEL_REPLAY,
-       nullptr,  // all operations: CONFIG and PASS
-       0,
-       tool_kernel_replay_callback,
-       nullptr);
+Quick start
+===========
 
-   rocprofiler_start_context(ctx);
-
-Configuring the domain also enables the device-allocation tracker used for snapshot and restore.
-A process that never configures the domain does not pay that tracking cost. Only one context may
-subscribe; a second configure call returns ``ROCPROFILER_STATUS_ERROR_SERVICE_ALREADY_CONFIGURED``.
-
-Set ``replay_pass_count``
-=====================
-
-``CONFIG`` ``PHASE_ENTER`` is where the tool installs the pass-count callback. The SDK calls
-that callback after ``CONFIG`` ``PHASE_ENTER`` returns:
+Subscribe through ordinary callback tracing (there is no dedicated configure function), then
+answer ``CONFIG`` with a pass-count callback:
 
 .. code-block:: cpp
 
-   void
-   tool_kernel_replay_callback(rocprofiler_callback_tracing_record_t record,
-                               rocprofiler_user_data_t* /* user_data */,
-                               void* /* callback_args */)
+   #include <rocprofiler-sdk/experimental/kernel_replay.h>
+
+   thread_local uint64_t tl_pass = 0;  // read by your dispatch-counting callback
+
+   uint64_t pass_count(rocprofiler_kernel_dispatch_info_t info, rocprofiler_user_data_t)
+   {
+       return groups_for_agent(info.agent_id);  // 1 = do not replay this dispatch
+   }
+
+   void on_kernel_replay(rocprofiler_callback_tracing_record_t record,
+                         rocprofiler_user_data_t* /*user_data*/, void* /*args*/)
    {
        if(record.kind != ROCPROFILER_CALLBACK_TRACING_KERNEL_REPLAY) return;
+       auto* kr = static_cast<rocprofiler_callback_tracing_kernel_replay_data_t*>(record.payload);
+       const bool enter = (record.phase == ROCPROFILER_CALLBACK_PHASE_ENTER);
 
-       auto* payload =
-           static_cast<rocprofiler_callback_tracing_kernel_replay_data_t*>(record.payload);
-
-       if(record.operation == ROCPROFILER_KERNEL_REPLAY_CONFIG &&
-          record.phase == ROCPROFILER_CALLBACK_PHASE_ENTER)
-       {
-           payload->replay_pass_count = tool_pass_count_callback;
-           // optionally: payload->replay_continue = tool_continue_callback;
-       }
-       else if(record.operation == ROCPROFILER_KERNEL_REPLAY_PASS &&
-               record.phase == ROCPROFILER_CALLBACK_PHASE_ENTER)
-       {
-           // payload->current_pass is 0-based; payload->total_passes is N (or 0 if indefinite)
-       }
+       if(record.operation == ROCPROFILER_KERNEL_REPLAY_CONFIG && enter)
+           kr->replay_pass_count = pass_count;
+       else if(record.operation == ROCPROFILER_KERNEL_REPLAY_PASS)
+           tl_pass = enter ? kr->current_pass : 0;  // 0-based; total_passes is N (0 if open-ended)
    }
 
-   uint64_t
-   tool_pass_count_callback(rocprofiler_kernel_dispatch_info_t dispatch_info,
-                            rocprofiler_user_data_t /* user_data */)
-   {
-       // Return 1 to skip replay for this dispatch (ordinary single execution, no snapshot).
-       // Return N > 1 for a fixed loop. Return 0 only with replay_continue set.
-       return groups_for_agent(dispatch_info.agent_id);
-   }
+   // in tool_init:
+   rocprofiler_context_id_t ctx{};
+   rocprofiler_create_context(&ctx);
+   rocprofiler_configure_callback_tracing_service(
+       ctx, ROCPROFILER_CALLBACK_TRACING_KERNEL_REPLAY, nullptr, 0, on_kernel_replay, nullptr);
+   rocprofiler_start_context(ctx);
+
+Configure dispatch counting as usual on another context; in its dispatch callback, pick the counter
+config for ``tl_pass``. ``samples/kernel_replay/counters_client.cpp`` does exactly this in about 40
+lines of callback code.
+
+Configuring the domain also turns on the device-allocation tracker used for snapshot and restore;
+a process that never configures it pays nothing. Only one context may subscribe -- a second
+configure call returns ``ROCPROFILER_STATUS_ERROR_SERVICE_ALREADY_CONFIGURED``.
+
+What you can configure
+======================
+
+The dials are fields of ``rocprofiler_callback_tracing_kernel_replay_data_t``
+(``experimental/kernel_replay.h``, about 70 lines of documented struct), plus the ``user_data``
+argument every tracing callback receives. There is no environment variable or global setting: all
+replay policy is decided by your tool, per dispatch.
 
 .. list-table::
    :header-rows: 1
-   :widths: 22 28 50
+   :widths: 26 18 56
+
+   * - Dial
+     - Set during
+     - What it does
+   * - ``replay_pass_count``
+     - ``CONFIG`` enter
+     - Callback returning the pass count for this dispatch. Receives ``dispatch_info`` (agent,
+       kernel id, grid and workgroup sizes, ...) and ``user_data``, so the count can differ per kernel
+       or per GPU. ``NULL`` or ``1`` means "do not replay".
+   * - ``replay_continue``
+     - ``CONFIG`` enter (default); ``PASS`` exit (override)
+     - Optional callback after each pass; return zero to stop. Stops a fixed loop early or ends an
+       open-ended one. Overriding it during ``PASS PHASE_EXIT`` applies to that pass only.
+   * - ``user_data``
+     - ``CONFIG`` enter
+     - Per-dispatch state delivered to ``replay_pass_count``, every ``PASS`` callback, and
+       ``replay_continue``. Each pass gets its own copy (see below).
+   * - ``replay_start_context`` / ``replay_stop_context``
+     - ``PASS`` enter
+     - Enable or disable one of your already-started contexts for this replay loop only, without
+       touching global context state.
+   * - Per-dispatch opt-out
+     - ``CONFIG`` enter
+     - Leave ``replay_pass_count`` ``NULL`` (or return ``1``) for dispatches you do not want replayed;
+       they run once with no snapshot.
+
+Pass count recipes
+------------------
+
+.. list-table::
+   :header-rows: 1
+   :widths: 22 22 56
 
    * - ``replay_pass_count``
      - ``replay_continue``
@@ -110,34 +155,59 @@ that callback after ``CONFIG`` ``PHASE_ENTER`` returns:
      - Exactly ``N`` passes.
    * - returns ``N > 1``
      - provided
-     - Up to ``N`` passes; continue callback may break early.
+     - Up to ``N`` passes; the continue callback can stop early but not extend. It sees
+       ``current_pass`` 0 through ``N-2``.
    * - returns ``0``
      - provided
-     - Indefinite loop until continue callback returns zero.
+     - Open-ended; runs until the continue callback returns zero. It **must** eventually return
+       zero on every path -- the application's completion is held until the loop ends.
    * - returns ``0``
      - ``NULL``
      - Rejected: the SDK warns and the dispatch is not replayed.
 
-One dispatch id is reserved before ``CONFIG`` and reused for every pass. The application observes
-exactly one kernel completion regardless of pass count.
+Replay only some dispatches
+---------------------------
+
+Decide in ``CONFIG PHASE_ENTER`` from ``dispatch_info``. This is the whole policy in
+``samples/kernel_replay/opt_out_client.cpp``:
+
+.. code-block:: cpp
+
+   if(record.operation == ROCPROFILER_KERNEL_REPLAY_CONFIG && enter)
+   {
+       if(kr->dispatch_info.workgroup_size.x == 67)  // the kernel we care about
+           kr->replay_pass_count = pass_count;
+       // otherwise leave it NULL: this dispatch runs once, no snapshot
+   }
+
+Stop early or loop adaptively
+-----------------------------
+
+Set ``replay_continue`` next to ``replay_pass_count``. Return non-zero to run another pass:
+
+.. code-block:: cpp
+
+   int keep_going(rocprofiler_kernel_dispatch_info_t, uint64_t current_pass,
+                  uint64_t /*total_passes*/, rocprofiler_user_data_t)
+   {
+       return current_pass < 1 ? 1 : 0;  // stop after pass 1 even if 4 were requested
+   }
+   // in CONFIG enter: kr->replay_pass_count = four_passes; kr->replay_continue = keep_going;
+
+``samples/kernel_replay/early_exit_client.cpp`` is this example; return ``0`` from
+``replay_pass_count`` instead for an open-ended loop.
 
 Carry state with ``user_data``
-==============================
+------------------------------
 
-The tracing callback receives a ``rocprofiler_user_data_t*`` for the current dispatch. Set it
-during ``CONFIG PHASE_ENTER`` to carry state through the complete replay sequence:
-
-* Use ``user_data->value`` for a small scalar such as a pass count or policy identifier.
-* Use ``user_data->ptr`` for a state object that remains alive through ``CONFIG PHASE_EXIT``.
-
-The SDK copies the union value after ``CONFIG PHASE_ENTER`` and supplies it to
-``replay_pass_count``, ``replay_continue``, and every ``PASS`` callback.
-
-Each pass gets its own copy, so replacing the union value during ``PASS PHASE_ENTER`` is scoped to
-that one pass:
+The tracing callback receives a ``rocprofiler_user_data_t*`` for the current dispatch. Write it
+during ``CONFIG PHASE_ENTER`` and the SDK hands it to ``replay_pass_count``, every ``PASS``
+callback, and ``replay_continue``. Each pass gets **its own copy**, re-seeded from the ``CONFIG``
+value, so a write during a pass stays with that pass:
 
 .. list-table::
    :header-rows: 1
+   :widths: 40 60
 
    * - Observed from
      - Value delivered
@@ -146,45 +216,52 @@ that one pass:
    * - ``PASS PHASE_ENTER``
      - the ``CONFIG PHASE_ENTER`` value, on every pass
    * - ``PASS PHASE_EXIT``
-     - the write made during ``PASS PHASE_ENTER`` of the same pass
+     - whatever this pass's ``PHASE_ENTER`` left
    * - ``replay_continue``
-     - the ``CONFIG PHASE_ENTER`` value
+     - whatever this pass's ``PHASE_EXIT`` left
    * - ``CONFIG PHASE_EXIT``
      - the ``CONFIG PHASE_ENTER`` value
 
-``replay_continue`` runs after ``PASS PHASE_EXIT`` but still receives the ``CONFIG`` value, so a
-tool cannot signal an early exit by overwriting ``user_data->value`` during a pass. Put anything
-that has to influence the continue decision behind ``user_data->ptr`` instead: mutations to the
-pointed-to object are visible from every callback, because the pointer itself never changes.
+Two useful consequences:
 
-``samples/kernel_replay/basic_client_with_user_data.cpp`` demonstrates the pointer form. It stores
-tool state in ``user_data.ptr``, reads the requested maximum from ``replay_pass_count``, lets a
-``PASS PHASE_EXIT`` update stop the loop through ``replay_continue``, and asserts each row of the
-table above.
+* A ``PASS PHASE_EXIT`` callback can decide "stop now" and hand that to ``replay_continue`` by
+  writing ``user_data->value`` -- the decision applies to this pass only.
+* State that must accumulate across passes (sample counts, convergence data) belongs behind
+  ``user_data->ptr``: the pointer is re-seeded every pass, but the object it points to is shared.
 
-Localized context control
-=========================
+``samples/kernel_replay/basic_client_with_user_data.cpp`` demonstrates both and asserts every row of
+the table.
 
-During ``PASS`` ``PHASE_ENTER`` the payload carries ``replay_start_context`` /
-``replay_stop_context``. Use them to enable or disable override-aware contexts for that
-pass (for example counters on selected passes and thread trace once) without calling global
-``rocprofiler_start_context`` / ``rocprofiler_stop_context``. PC sampling is agent-wide and does
-not currently honor these callbacks, so it cannot be isolated to one replay pass.
+Different services on different passes
+--------------------------------------
 
-Overrides are sticky across passes and scoped to the replay loop. See
-:ref:`kernel-replay-callback-api` for the contract.
+Configure and start each service on its own context **before** replay begins. Then, during
+``PASS PHASE_ENTER``, use the localized toggles to choose which contexts take part. From
+``samples/kernel_replay/att_client.cpp`` (counters on pass 0, thread trace on pass 1):
 
-In-tree examples
-================
+.. code-block:: cpp
 
-* ``samples/kernel_replay/basic_client_with_user_data.cpp`` — threads mutable tool state through
-  ``user_data.ptr`` without a dispatch-id side table.
-* ``tests/kernel-replay-concurrency/`` — custom client that replays one kernel and opts another
-  out, asserting concurrent non-replayed work is not corrupted by snapshot/restore.
-* ``tests/kernel-replay-local-context/`` — custom client that starts/stops per-service contexts
-  across passes.
-* ``source/lib/rocprofiler-sdk/kernel_replay/tests/`` — unit tests for configure, local context,
-  and snap/restore.
+   if(record.operation == ROCPROFILER_KERNEL_REPLAY_PASS && enter)
+   {
+       const bool counters = (kr->current_pass != 1);
+       (counters ? kr->replay_start_context : kr->replay_stop_context)(counters_ctx);
+       (counters ? kr->replay_stop_context : kr->replay_start_context)(att_ctx);
+   }
+
+* **Only valid during** ``PASS PHASE_ENTER``; elsewhere they return
+  ``ROCPROFILER_STATUS_ERROR_CONTEXT_ERROR``.
+* **Sticky** across passes of this dispatch, and **scoped** to the replay loop: every context
+  returns to its pre-replay state afterwards.
+* **Cannot promote** a context that is globally stopped.
+* **Coverage varies by service.** Dispatch counter collection and SPM honor start and stop. Kernel
+  dispatch tracing and dispatch thread trace honor stop only. PC sampling and device counting ignore
+  the toggles (the call succeeds but has no effect), so PC sampling cannot be isolated to one pass.
+* **Keep incompatible services on separate passes.** Counters and PC sampling conflict on MI2xx /
+  MI3xx (clock gating); ATT and SPM both inject packets around the dispatch.
+
+Do not call the global ``rocprofiler_start_context`` / ``rocprofiler_stop_context`` from inside
+the replay loop -- that leaks into non-replayed dispatches. The full contract is in
+:ref:`kernel-replay-callback-api`.
 
 What is snapshotted
 ===================
@@ -192,45 +269,74 @@ What is snapshotted
 Between passes, kernel replay restores:
 
 * Coarse-grained device (VRAM) allocations from ``hipMalloc`` /
-  ``hsa_amd_memory_pool_allocate`` / ``hsa_memory_allocate``.
+  ``hsa_amd_memory_pool_allocate`` / ``hsa_memory_allocate`` owned by the dispatch's GPU.
 * Module-scope ``__device__`` and ``__constant__`` variables in loaded executables.
 
-It does **not** restore:
+It does **not** restore unified or managed memory, ``hipMallocAsync`` and other pool-backed
+allocations, host, fine-grained, kernarg, or executable allocations, or HIP graph-managed memory.
+A kernel that writes those sees values accumulated across passes.
 
-* Unified or managed memory.
-* ``hipMallocAsync`` and other pool-backed, stream-ordered allocations.
-* Host, fine-grained, kernarg, or executable allocations (excluded by design).
-* HIP graph-managed memory.
-
-Capture is a **full in-memory copy** of every tracked region into host RAM. Cost is
-``O(tracked_bytes × passes)``, not kernel time alone. The last executed pass is **not** restored,
-so the application sees the memory the kernel actually produced.
+The snapshot covers the GPU's **whole tracked footprint**, not only what the kernel touches, and is
+a full in-memory copy to host RAM: cost is ``O(tracked_bytes × passes)``. The last pass is not
+restored, so the application continues with the memory its kernel actually produced. See
+:ref:`kernel-replay-memory-snapshot` and :ref:`kernel-replay-performance`.
 
 .. _kernel-replay-limitations:
 
 Limitations
 ===========
 
-* **Beta.** The domain, payload, and snapshot policy may change.
-* **Single** ``KERNEL_REPLAY`` **subscriber.**
-* **Coarse-grained device VRAM only**, plus module-scope device/constant variables.
-* **HIP graph launches are not replayed.** The interceptor warns once and the graph runs once on
-  the ordinary path. A graph dispatch does **not** hard-error at the replay gate.
+* **Experimental.** The domain, payload, and snapshot policy may change.
+* **Single** ``KERNEL_REPLAY`` **subscriber** per process.
+* **Snapshot coverage** is coarse-grained device memory plus module-scope device and constant
+  variables (above).
+* **HIP graph launches are not replayed.** The SDK warns once and the graph runs once on the
+  ordinary path.
 * **Only single-packet, single-dispatch submissions** are replayed. Multi-packet batches warn once
   and run once.
-* **Writer lock serializes the agent** for the whole replay window. Different GPUs use different
-  locks (multi-GPU concurrent at the SDK), but there is no in-tree multi-GPU test and no MPI
-  coordination.
+* **The GPU is serialized** for the replay window by a per-agent lock. Different GPUs replay
+  concurrently, but there is no in-tree multi-GPU test and no MPI coordination.
 * **Async copies are not fenced.** ``hsa_amd_memory_async_copy`` (or HIP async memcpy) on another
-  thread can mutate device memory during the replay window.
-* **Stuck drains abort the process** rather than hanging (roughly 60 s bounds inside the window).
-* **Host RAM duplication** of the tracked device footprint for the duration of the replay. Under
-  host memory pressure the snapshot is declined and the dispatch runs once rather than aborting.
+  thread can change device memory during the replay window.
+* **Stuck drains abort the process** rather than hang (roughly 60 s bounds inside the window), and
+  a failed restore aborts rather than continue on partially restored memory.
+* **Host RAM** holds a copy of the tracked device footprint during replay. Under host memory
+  pressure the snapshot is declined and the dispatch runs once.
+
+Samples and tests
+=================
+
+.. list-table::
+   :header-rows: 1
+   :widths: 40 60
+
+   * - Where
+     - What it shows
+   * - ``samples/kernel_replay/basic_client.cpp``
+     - Four passes, replay only. Start here.
+   * - ``samples/kernel_replay/counters_client.cpp``
+     - A different counter group on each pass.
+   * - ``samples/kernel_replay/opt_out_client.cpp``
+     - Replaying one kernel and leaving another alone.
+   * - ``samples/kernel_replay/early_exit_client.cpp``
+     - ``replay_continue`` stopping after pass 1 of 4.
+   * - ``samples/kernel_replay/basic_client_with_user_data.cpp``
+     - ``user_data`` semantics, including a ``PASS``-driven stop.
+   * - ``samples/kernel_replay/att_client.cpp`` / ``spm_client.cpp``
+     - Counters on pass 0, thread trace or SPM on pass 1.
+   * - ``tests/kernel-replay-local-context/``
+     - Per-service start/stop across passes, with exact record counts.
+   * - ``tests/kernel-replay-concurrency/``
+     - A replayed kernel next to an unreplayed one: snapshot/restore does not corrupt concurrent
+       work.
+
+Build and run commands are in ``samples/kernel_replay/README.md``.
 
 See also
 ========
 
-* :ref:`kernel-replay-sdk-api` — payload, operations, dispatch counting pattern
-* :ref:`kernel-replay-callback-api` — API contract and source map
-* :ref:`kernel-replay-concurrency` — isolation model
-* :ref:`kernel-replay-memory-snapshot` — what ``snap()`` / ``restore()`` actually do
+* :ref:`using-kernel-replay-rocprofv3` -- the ``rocprofv3`` command-line guide
+* :ref:`kernel-replay-sdk-api` -- payload, operations, and the dispatch-counting pattern
+* :ref:`kernel-replay-conceptual` -- how kernel replay works and where to go next
+* :ref:`kernel-replay-callback-api` -- full API contract
+* :ref:`using-range-replay` -- replaying a sequence of dependent kernels

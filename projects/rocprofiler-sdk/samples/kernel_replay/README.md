@@ -1,45 +1,70 @@
 # Kernel replay samples
 
-Small **custom tools** plus a HIP application, following the same layout as
-`samples/counter_collection/`: each sample is a shared-library client (`.so`) preloaded
-onto a minimal app (`main.cpp`). These are **not** `rocprofv3` integration tests.
+Hands-on companions to the kernel replay guide
+([`using-kernel-replay.rst`](../../source/docs/how-to/using-kernel-replay.rst)). Each sample is a
+small **custom tool** (`lib<name>-client.so`) preloaded onto one shared HIP application
+(`main.cpp`), and each tool wires kernel replay plus at most one service, so you can read the whole
+thing in a few minutes.
 
-Build with `-DROCPROFILER_BUILD_SAMPLES=ON`.
+These are SDK samples for tool authors. To collect several counter groups from the command line
+instead, use `rocprofv3 --replay-mode kernel --kernel-replay-beta-enabled`
+([`using-kernel-replay-rocprofv3.rst`](../../source/docs/how-to/using-kernel-replay-rocprofv3.rst)).
 
-## Samples vs integration tests
+## Build and run
 
-| | **Samples** (`samples/kernel_replay/`) | **Integration tests** (`tests/kernel-replay-*`) |
-|---|---|---|
-| Purpose | Teach tool authors: subscribe to replay, wire one service | Regression coverage (local toggles, concurrency) |
-| Tool | Small LD_PRELOAD client with only the feature under demo | Env-driven client in `tests/` |
-| App | Shared `main.cpp` HIP kernels | Dedicated test app per suite |
-| Run | `ctest -R '^kernel-replay-'` in the samples build dir | `ctest -R kernel-replay-local-context` in main build |
+Build the samples with `-DROCPROFILER_BUILD_SAMPLES=ON` (or from an installed ROCm, as described in
+the samples how-to), then from the samples build directory:
 
-For JSON output validation with the shared test harness, see `tests/counter-collection/`
-(`rocprofiler-sdk-json-tool`). Kernel replay JSON/tool wiring belongs to `rocprofv3`, not to
-these SDK samples.
+```bash
+ctest -R '^kernel-replay-' --output-on-failure
+```
 
-## What each sample shows
+Or run one by hand:
 
-Start with the **basic** samples — each client is small and only wires kernel replay plus one
-service (same idea as `samples/counter_collection/`).
+```bash
+export LD_PRELOAD=./libkernel-replay-counters-client.so
+./kernel-replay-counters
+```
 
-| Sample | Passes | Services |
-|---|---|---|
-| `kernel-replay-basic` | 4 | Replay only. The app still sees one kernel completion. |
-| `kernel-replay-basic-user-data` | 4 max / 2 actual | Carries tool state through `user_data.ptr`; PASS state stops replay through `replay_continue`. |
-| `kernel-replay-counters` | 3 | Dispatch counters; each pass selects a different counter configuration. |
-| `kernel-replay-counters-then-pc-sampling` | — | **Disabled in ctest:** PC sampling ignores localized pass overrides (see API docs). |
-| `kernel-replay-att` | 2 | Counters on pass 0, ATT on pass 1. |
-| `kernel-replay-spm` | 2 | Counters on pass 0, SPM on pass 1. |
-| `kernel-replay-opt-out` | 3 / 1 | Replays the `bump` kernel (`block.x == 67`); leaves `nudge` unreplayed. |
-| `kernel-replay-early-exit` | 4 / 2 | Sets `replay_continue` to stop after pass 1 even though `replay_pass_count` returns 4. |
+Each tool checks its own expectations in `tool_fini` and aborts on a mismatch, so a passing run is
+the demonstration.
 
-### Advanced: multi-service pass ordering
+## Suggested reading order
 
-These two targets share one larger client (`service_sequence_client.cpp`) that runs **five**
-passes with ATT, SPM, and counters in a fixed order (PC sampling slots are present in the source
-but the ctests are **disabled** until PC sampling honors localized overrides).
+| # | Sample | Source | Passes | What to look for |
+|---|---|---|---|---|
+| 1 | `kernel-replay-basic` | `basic_client.cpp` | 4 | The minimum: subscribe, set `replay_pass_count` in CONFIG, count PASS callbacks. The app still sees one kernel completion. |
+| 2 | `kernel-replay-counters` | `counters_client.cpp` | 3 | A different counter group per pass: PASS publishes `current_pass` in a `thread_local`, the dispatch-counting callback picks the config for it. |
+| 3 | `kernel-replay-opt-out` | `opt_out_client.cpp` | 3 / 1 | Per-dispatch policy: replays the `bump` kernel (`workgroup_size.x == 67`), leaves `nudge` alone by keeping `replay_pass_count` NULL. |
+| 4 | `kernel-replay-early-exit` | `early_exit_client.cpp` | 4 / 2 | `replay_continue` stops after pass 1 even though `replay_pass_count` asked for 4. |
+| 5 | `kernel-replay-basic-user-data` | `basic_client_with_user_data.cpp` | 4 max / 2 actual | `user_data` semantics: state behind `user_data.ptr`, and a PASS-exit decision handed to `replay_continue` through the pass-scoped copy. |
+| 6 | `kernel-replay-att` | `att_client.cpp` | 2 | Different services on different passes: counters on pass 0, thread trace on pass 1, using the local start/stop toggles. |
+| 7 | `kernel-replay-spm` | `spm_client.cpp` | 2 | The same, with SPM on pass 1. |
+
+`kernel-replay-counters-then-pc-sampling` (`counters_then_pc_sampling_client.cpp`) is built but
+**disabled in CTest**: PC sampling is agent-wide and ignores the local toggles, so it cannot be
+isolated to one pass.
+
+## What you can change in these samples
+
+| Dial | Where to look |
+|---|---|
+| Pass count | `kPasses` / `replay_pass_count` in any client |
+| Which dispatches replay | the `workgroup_size.x` check in `opt_out_client.cpp` |
+| Early stop | `replay_continue` in `early_exit_client.cpp` |
+| Per-dispatch state | `user_data` handling in `basic_client_with_user_data.cpp` |
+| Which service runs on which pass | the PASS-enter toggles in `att_client.cpp`, `spm_client.cpp` |
+| Counter group per pass | `counter_name_for_pass` in `counters_client.cpp` |
+
+The header with every dial is
+[`experimental/kernel_replay.h`](../../source/include/rocprofiler-sdk/experimental/kernel_replay.h).
+
+## Advanced: multi-service pass ordering
+
+`kernel-replay-services-first` and `kernel-replay-services-last` share one larger client
+(`service_sequence_client.cpp`) that runs **five** passes with ATT, SPM, and counters in a fixed
+order. PC sampling slots are present in the source, but these CTest targets are **disabled** until
+PC sampling honors localized overrides.
 
 | Sample | Pass order (5 passes) |
 |---|---|
@@ -51,26 +76,28 @@ Requires `ROCPROFILER_PC_SAMPLING_BETA_ENABLED=ON` and `ROCPROFILER_SPM_BETA_ENA
 
 ## Incompatible services use separate passes
 
-Dispatch counter collection turns clock gating back on around a kernel. PC sampling on
-MI2xx/MI3xx requires clock gating off. Running both on the **same** replay pass can hang the GPU.
+- Dispatch counter collection turns clock gating back on around a kernel, while PC sampling on
+  MI2xx/MI3xx requires it off. Running both on the **same** pass can hang the GPU.
+- ATT and SPM both inject AQL instrumentation around the dispatch, so they cannot safely share a
+  pass.
 
-ATT and SPM also cannot safely share one pass because both inject AQL instrumentation around the
-dispatch. Use **separate contexts** and **separate passes** with local toggles.
+Put each on its own context and its own pass, and use the local toggles to switch between them.
+`ROCPROFILER_SPM_BETA_ENABLED=True` is required for the SPM sample, and
+`ROCPROFILER_PC_SAMPLING_BETA_ENABLED=ON` for the PC-sampling sample.
 
-`ROCPROFILER_PC_SAMPLING_BETA_ENABLED=ON` is required for the PC-sampling sample.
-`ROCPROFILER_SPM_BETA_ENABLED=True` is required for the SPM sample.
+## Samples vs integration tests
 
-## Run
+| | **Samples** (`samples/kernel_replay/`) | **Integration tests** (`tests/kernel-replay-*`) |
+|---|---|---|
+| Purpose | Teach: subscribe to replay, wire one service | Regression coverage (local toggles, concurrency) |
+| Tool | Small preloaded client with only the feature under demo | Env-driven client in `tests/` |
+| Run | `ctest -R '^kernel-replay-'` in the samples build | `ctest -R kernel-replay-local-context` in the main build |
 
-From the sample build directory:
+`rocprofv3`'s use of kernel replay (JSON `replay_pass`, CLI validation) is tested under
+`tests/rocprofv3/kernel-replay/`, not here.
 
-```bash
-ctest -R '^kernel-replay-' --output-on-failure
-```
+## See also
 
-Or manually:
-
-```bash
-export LD_PRELOAD=./libkernel-replay-counters-client.so
-./kernel-replay-counters
-```
+- [`using-kernel-replay.rst`](../../source/docs/how-to/using-kernel-replay.rst) — SDK how-to
+- [`conceptual/kernel_replay/index.md`](../../source/docs/conceptual/kernel_replay/index.md) — how it works
+- [`samples/range_replay/`](../range_replay/README.md) — replaying a sequence of dependent kernels

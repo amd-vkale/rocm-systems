@@ -39,7 +39,10 @@ subtrees:
     - file: how-to/using-thread-trace
     - file: how-to/using-rocprofv3-on-wsl
     - file: how-to/using-spm
+    - file: how-to/using-kernel-replay-rocprofv3
     - file: how-to/using-kernel-replay
+    - file: how-to/using-range-replay-rocprofv3
+    - file: how-to/using-range-replay
     - file: how-to/samples
       title: Samples
   - caption: API reference
@@ -144,6 +147,8 @@ subtrees:
           title: Soundness and declining
         - file: conceptual/range_replay/range_replay_host
           title: Host replay (sigsetjmp / siglongjmp)
+        - file: conceptual/range_replay/range_replay_multi_gpu
+          title: Multi-GPU and collectives
         - file: conceptual/range_replay/range_replay_performance
           title: Performance
   - caption: License

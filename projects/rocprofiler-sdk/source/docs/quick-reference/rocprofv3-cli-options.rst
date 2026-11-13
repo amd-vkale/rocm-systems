@@ -184,17 +184,25 @@ The following table lists the commonly used ``rocprofv3`` command-line options c
                     <td>Collects traces of KFD events dropped by the KFD device driver.</td>
                 </tr>
                 <tr>
-                    <th rowspan="2" id="counter-collection">Counter collection</th>
+                    <th rowspan="5" id="counter-collection">Counter collection</th>
                     <td>--pmc [PMC …]</td>
                     <td>Specifies performance monitoring counters to be collected. Use comma or space to specify more than one counter. For multi-pass collection, use multiple --pmc flags where each flag defines a separate counter group. The job fails if a counter group can't be collected in a single pass. <a href="https://rocm.docs.amd.com/projects/rocprofiler-sdk/en/latest/how-to/using-rocprofv3.html#counter-collection-using-command-line">Read more...</a></td>
                 </tr>
                 <tr>
-                    <td>--replay-mode {kernel,application}</td>
-                    <td>(beta) Select the counter-collection replay strategy. 'kernel' collects all --pmc groups in a single application run by replaying each dispatch once per group with device-memory snapshot/restore between passes, instead of re-running the whole application per group. Requires --pmc and --kernel-replay-beta-enabled. 'application' (default) re-runs the whole application once per counter group. <a href="https://rocm.docs.amd.com/projects/rocprofiler-sdk/en/latest/how-to/using-kernel-replay-rocprofv3.html">Read more...</a></td>
+                    <td>--replay-mode {kernel,range,application}</td>
+                    <td>(beta) Select the counter-collection replay strategy. 'kernel' collects all --pmc groups in a single application run by replaying each dispatch once per group with device-memory snapshot/restore between passes, instead of re-running the whole application per group. Requires --pmc and --kernel-replay-beta-enabled. 'range' does the same for a range the application marks with rocprofiler_range_replay_begin/end: the application's own execution is pass 0 and each extra pass re-runs the range with the next group. Requires --pmc and --range-replay-beta-enabled. 'application' (default) re-runs the whole application once per counter group. <a href="https://rocm.docs.amd.com/projects/rocprofiler-sdk/en/latest/how-to/using-kernel-replay-rocprofv3.html">Kernel replay...</a> <a href="https://rocm.docs.amd.com/projects/rocprofiler-sdk/en/latest/how-to/using-range-replay-rocprofv3.html">Range replay...</a></td>
                 </tr>
                 <tr>
                     <td>--kernel-replay-beta-enabled [BOOL]</td>
                     <td>(beta) Acknowledge that --replay-mode kernel is a beta feature. Required when --replay-mode kernel is specified. <a href="https://rocm.docs.amd.com/projects/rocprofiler-sdk/en/latest/how-to/using-kernel-replay-rocprofv3.html">Read more...</a></td>
+                </tr>
+                <tr>
+                    <td>--range-replay-beta-enabled [BOOL]</td>
+                    <td>(beta) Acknowledge that --replay-mode range is a beta feature. Required when --replay-mode range is specified. <a href="https://rocm.docs.amd.com/projects/rocprofiler-sdk/en/latest/how-to/using-range-replay-rocprofv3.html">Read more...</a></td>
+                </tr>
+                <tr>
+                    <td>--range-replay-host [BOOL]</td>
+                    <td>(beta) Re-run the application's own code for each extra range-replay pass (sigsetjmp/siglongjmp) instead of re-submitting the recorded packets. The application must open the range with ROCPROFILER_RANGE_REPLAY_HOST_BEGIN. Requires --replay-mode range. <a href="https://rocm.docs.amd.com/projects/rocprofiler-sdk/en/latest/how-to/using-range-replay-rocprofv3.html">Read more...</a></td>
                 </tr>
                 <tr>
                     <th rowspan="4">Post-processing tracing</th>
